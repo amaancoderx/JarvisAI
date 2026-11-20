@@ -134,10 +134,27 @@ function guessSkill(t: string): string {
 
 /** Research skill: Gemini with Google Search grounding, so answers are current and cited. */
 export async function searchWeb(query: string): Promise<{ answer: string; sources: Source[] }> {
-  const { res: r } = await generate(MODELS.search(), {
+  const req = {
     contents: `Answer briefly and factually, with concrete names, prices or dates where useful. Question: ${query}`,
     config: { tools: [{ googleSearch: {} }], temperature: 0.2 },
-  });
+  };
+  // Search grounding has its own quota; a separate key can carry it (SEARCH_API_KEY), with the main key as a fallback.
+  const clients: GoogleGenAI[] = [];
+  // On Google Cloud, Vertex AI runs grounded Gemini on the project's own billing, using Cloud Run's identity (no key).
+  if (process.env.VERTEX_PROJECT) clients.push(new GoogleGenAI({ vertexai: true, project: process.env.VERTEX_PROJECT, location: process.env.VERTEX_LOCATION || "global" }));
+  for (const k of [process.env.SEARCH_API_KEY, process.env.GEMINI_API_KEY]) if (k) clients.push(new GoogleGenAI({ apiKey: k }));
+  const models = [...new Set([process.env.SEARCH_MODEL, "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash"].filter(Boolean) as string[])];
+  let r: GenerateContentResponse | null = null;
+  let last: unknown;
+  outer: for (const c of clients) {
+    for (const model of models) {
+      try {
+        r = await c.models.generateContent({ ...req, model, config: { ...req.config, httpOptions: { timeout: 20000 } } });
+        break outer;
+      } catch (e) { last = e; }
+    }
+  }
+  if (!r) throw last;
   const chunks = r.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
   const seen = new Set<string>();
   const sources: Source[] = [];

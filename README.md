@@ -27,9 +27,9 @@ This repository is the **Google AI edition** of Jarvis, built by team **Bas Bolo
 
 ## ▶️ Try it live
 
-**[jarvis-ai-eight-swart.vercel.app](https://jarvis-ai-eight-swart.vercel.app)** · no sign-in needed
+**[jarvis-704571930437.asia-south1.run.app](https://jarvis-704571930437.asia-south1.run.app)** · running on Google Cloud Run (Mumbai) · no sign-in needed to try
 
-Tap a suggestion or press **Talk** and speak in English, Hindi or Telugu. The prototype runs on a **demo workspace** (sample inbox, calendar and contacts), so judges can try real sends and bookings safely: nothing leaves the sandbox. The AI is real: Gemini plans every task, Google Search grounding answers live questions, Gemini Live handles voice and Gemma routes requests.
+Choose **Use your Google account** to connect your real Gmail and Google Calendar (Google sign-in, every send waits for your OK), or **Try instantly** with a sample inbox. Either way the AI is real: Gemini plans every task, Google Search grounding on Vertex AI answers live questions, Gemini Live handles voice and Gemma routes requests.
 
 **Try these:**
 - *"Ravi ke saath kal raat 8 baje Banjara Hills mein dinner book karo, aur use WhatsApp pe bata do"*

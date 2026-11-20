@@ -9,3 +9,5 @@ next-env.d.ts
 *.tsbuildinfo
 
 .vercel
+.gemini_billed
+.gcloudignore
