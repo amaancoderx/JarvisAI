@@ -57,6 +57,8 @@ interface Api extends State {
   disconnect: (app: GApp) => Promise<void>;
   sync: () => Promise<void>;
   syncing: boolean;
+  openOnComputer: (url: string) => Promise<string | null>;
+  learning: string | null;
   learn: (source: LearnSource, extra?: { text?: string; name?: string; mime?: string; data?: string }) => Promise<{ facts: number; people: number; error?: string }>;
   chat: Chat;
   send: (text: string, voice?: boolean) => Promise<AgentResult | null>;
@@ -208,6 +210,41 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     } finally { setSyncing(false); }
   }, []);
   useEffect(() => { if (loaded && space === "google" && (live.gmail || live.calendar)) void sync(); }, [loaded, space, live.gmail, live.calendar, sync]);
+  // Fully automatic: fresh mail and events every two minutes and whenever the tab comes back.
+  useEffect(() => {
+    if (!loaded || space !== "google") return;
+    const t = setInterval(() => void sync(), 120_000);
+    const onFocus = () => { if (document.visibilityState === "visible") void sync(); };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onFocus); };
+  }, [loaded, space, sync]);
+
+  // Memory teaches itself: each connected app is read once on connect and again every few hours, with no button to press.
+  const [learning, setLearning] = useState<string | null>(null);
+  const autoRunning = useRef(false);
+  useEffect(() => {
+    if (!loaded || space !== "google" || autoRunning.current) return;
+    const due = (["gmail", "calendar", "drive"] as const).filter((k) => live[k] && Date.now() - +new Date(ref.current.ws.learnedAt?.[k] ?? 0) > 6 * 3600_000);
+    if (!due.length) return;
+    autoRunning.current = true;
+    void (async () => {
+      for (const k of due) {
+        setLearning(k);
+        const r = await learn(k);
+        if (!r.error) setS((x) => ({ ...x, ws: { ...x.ws, learnedAt: { ...(x.ws.learnedAt ?? {}), [k]: new Date().toISOString() } } }));
+      }
+      setLearning(null);
+      autoRunning.current = false;
+    })();
+  }, [loaded, space, live.gmail, live.calendar, live.drive, learn]);
+
+  const openOnComputer = useCallback(async (url: string) => {
+    const r = await fetch("/api/computer/open", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : { error: "Network problem." };
+    if (!r || !r.ok) return j.error || "Could not open that page.";
+    setS((x) => ({ ...x, computer: { url: j.url, title: j.title, image: j.image, fields: [], status: `Opened on the Jarvis computer in ${(j.ms / 1000).toFixed(1)} s` } }));
+    return null;
+  }, []);
 
   const send = useCallback(async (text: string, voice = false) => {
     const t = text.trim();
@@ -288,7 +325,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   }, [live.email, sync]);
 
   const api = useMemo<Api>(() => ({
-    ...s, live, connect, disconnect, space, setSpace, sync, syncing, learn,
+    ...s, live, connect, disconnect, space, setSpace, sync, syncing, learn, learning, openOnComputer,
     chat: s.chats.find((c) => c.id === s.chatId) ?? s.chats[0],
     send, decide,
     newChat: () => setS((x) => {
@@ -307,7 +344,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     updateWs: (f) => setS((x) => ({ ...x, ws: f(x.ws) })),
     setRoutines: (routines) => setS((x) => ({ ...x, routines })),
     reset: () => setS(fresh()),
-  }), [s, send, decide, live, connect, disconnect, space, setSpace, sync, syncing, learn]);
+  }), [s, send, decide, live, connect, disconnect, space, setSpace, sync, syncing, learn, learning, openOnComputer]);
 
   if (!loaded) return null;
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

@@ -42,6 +42,16 @@ export async function liveFor(uid: string, fresh = false): Promise<Live> {
   if (live.gmail) {
     try { live.email = (await proxy<{ emailAddress: string }>(live.gmail, GMAIL, "GET", "/gmail/v1/users/me/profile")).emailAddress; } catch { /* still connected */ }
   }
+  // The same person may already have Calendar or Drive connected in Jarvis under this Google email.
+  // The email is proven by this user's own Gmail sign-in, so those connections are theirs too.
+  if (live.email && (!live.calendar || !live.drive)) {
+    try {
+      const all = (await (await fetch(`${host()}/connections`, { headers: { Authorization: `Bearer ${secret()}` } })).json()) as { connections?: { connection_id: string; provider_config_key: string; created: string; end_user?: { email?: string } | null }[] };
+      const same = (all.connections ?? []).filter((c) => c.end_user?.email?.toLowerCase() === live.email!.toLowerCase()).sort((a, b) => b.created.localeCompare(a.created));
+      live.calendar ??= same.find((c) => c.provider_config_key === CALENDAR)?.connection_id ?? null;
+      live.drive ??= same.find((c) => c.provider_config_key === DRIVE)?.connection_id ?? null;
+    } catch { /* keep what we have */ }
+  }
   cache.set(uid, { at: Date.now(), live });
   return live;
 }

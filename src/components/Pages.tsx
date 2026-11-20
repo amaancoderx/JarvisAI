@@ -180,11 +180,11 @@ export function MemoryPage() {
       <section className="section">
         <div className="section-head"><h2>Teach Jarvis</h2></div>
         <div className="card stack">
-          <div className="small muted">Learn from your apps. Jarvis reads them once and keeps only lasting facts and people, never passwords or codes.</div>
+          <div className="small muted">{google ? <>Jarvis learns from your connected apps <b>automatically</b>: when you connect them and again every few hours. It keeps only lasting facts and people, never passwords or codes. {j.learning ? <span style={{ color: "var(--accent)" }}>Learning from {j.learning} now…</span> : Object.keys(j.ws.learnedAt ?? {}).length ? `Last learned ${Object.entries(j.ws.learnedAt ?? {}).map(([k, v]) => `${k} ${ago(v)}`).join(", ")}.` : ""}</> : "Connect your Google account and Jarvis learns from Gmail, Calendar and Drive automatically. Here you can teach it directly."}</div>
           <div className="row wrap">
             {sources.map((s) => (
               <button key={s.id} className="btn sm ghost" disabled={!google || !s.on || busy !== null} title={!google ? "Switch to your Google account first" : s.on ? "" : `Connect ${s.title} first`} onClick={() => void run(s.id, () => j.learn(s.id))}>
-                <AppIcon app={s.id} size={16} />{busy === s.id ? "Learning…" : `Learn from ${s.title}`}
+                <AppIcon app={s.id} size={16} />{busy === s.id || j.learning === s.id ? "Learning…" : `Refresh from ${s.title}`}
               </button>
             ))}
             {!google && <a className="text-btn" href="#/connections">Connect your Google account to learn from your apps</a>}
@@ -259,7 +259,7 @@ export function InboxPage({ go }: { go: Go }) {
   return (
     <div className="page">
       <Head title="Inbox" sub={j.space === "google" ? "Your Gmail, as Jarvis last read it. Ask Jarvis to go through it; anything that tries to give Jarvis orders gets quarantined." : "The sample inbox. One email is a phishing attempt that tries to give Jarvis orders; watch it get quarantined."} />
-      {j.space === "google" && <div className="row"><button className="btn sm ghost" disabled={j.syncing} onClick={() => void j.sync()}><Icon name="repeat" size={14} />{j.syncing ? "Syncing…" : "Sync now"}</button>{!j.live.gmail && <a href="#/connections" className="text-btn">Connect Gmail to see your inbox</a>}</div>}
+      {j.space === "google" && <div className="row"><span className="chip done">{j.syncing ? "Syncing…" : "Synced automatically"}</span><button className="text-btn" disabled={j.syncing} onClick={() => void j.sync()}>Refresh</button>{!j.live.gmail && <a href="#/connections" className="text-btn">Connect Gmail to see your inbox</a>}</div>}
       {j.ws.inbox.length === 0 && <div className="empty">{j.syncing ? "Loading your inbox…" : "No email to show yet."}</div>}
       <div className="stack">
         {j.ws.inbox.map((e) => (
@@ -398,10 +398,19 @@ export function ConnectionsPage() {
 /* ---------- Computers ---------- */
 export function ComputersPage() {
   const j = useJarvis();
-  const t = j.tasks.find((x) => x.computer);
+  const [url, setUrl] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const last = j.computer?.image ? j.computer : j.tasks.find((x) => x.computer?.image)?.computer ?? null;
+  const t = last ? { computer: last } : j.tasks.find((x) => x.computer);
   return (
     <div className="page">
       <Head title="Computers" sub="Jarvis has its own computer in the cloud. It opens websites, fills forms and books things the way a person would, and stops before it submits." />
+      <form className="row" onSubmit={async (e) => { e.preventDefault(); if (!url.trim()) return; setOpening(true); setErr(null); setErr(await j.openOnComputer(url.trim())); setOpening(false); }}>
+        <input className="input" placeholder="Open any website on the Jarvis computer, e.g. ai.google.dev" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn accent" disabled={opening || !url.trim()}>{opening ? "Opening…" : "Open"}</button>
+      </form>
+      {err && <div className="error">{err}</div>}
       <div className="computer-grid">
         <div className="card computer-card">
           <div className="row"><span className="tile accent"><Icon name="panel" size={16} /></span><b className="grow">Jarvis computer</b><span className="chip done">Ready</span></div>
@@ -410,7 +419,7 @@ export function ComputersPage() {
         </div>
         <div className="card computer-card">
           <b>Last screen</b>
-          {t?.computer ? <Browser computer={t.computer} waiting={j.pending?.tool === "book_table"} /> : <div className="screen-frame screen-empty small muted">Nothing opened yet. Try "read ai.google.dev and summarise it" or "book a table for 4 tonight".</div>}
+          {opening ? <div className="screen-frame screen-empty small muted"><span className="row"><span className="spinner" />Opening on the Jarvis computer…</span></div> : t?.computer ? <Browser computer={t.computer} waiting={j.pending?.tool === "book_table"} /> : <div className="screen-frame screen-empty small muted">Nothing opened yet. Try "read ai.google.dev and summarise it" or "book a table for 4 tonight".</div>}
         </div>
       </div>
       {j.tasks.filter((x) => x.computer?.image).length > 0 && (
