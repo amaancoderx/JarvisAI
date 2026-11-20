@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./Icon";
 import { JarvisMark } from "./JarvisMark";
 import { AppIcon } from "./AppIcon";
-import { Browser, Rich, StatusChip, StepRow, ago, appOf, ist } from "./bits";
+import { Browser, Rich, StatusChip, StepRow, ago, appOf, cleanStatus, ist } from "./bits";
 import { useJarvis, type Task } from "./store";
 import { chooseFolder, connectTab, disconnectTab, folderSupported, shareScreen, stopScreen, useTab } from "./tab";
 import type { View } from "./Shell";
@@ -435,7 +435,7 @@ export function ComputersPage() {
     "Search for flights from Hyderabad to Bengaluru on 2 December and list the cheapest",
   ];
   const [chipLabel, chipTone] = STATUS_CHIP[s?.status ?? "idle"];
-  const history = j.tasks.filter((x) => x.computer?.image).slice(0, 4);
+  const history = j.tasks.filter((x) => x.computer?.image && !cleanStatus(x.computer.status).problem).slice(0, 4);
 
   return (
     <div className="page wide">

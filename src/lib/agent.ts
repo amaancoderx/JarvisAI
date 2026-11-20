@@ -204,7 +204,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
         const url = String(args.url ?? "");
         openUrls.push({ url: /^https?:\/\//i.test(url) ? url : `https://${url}`, why: String(args.why ?? "") });
         steps.push({ tool, label, status: "done", detail: url, tier });
-        responses.push({ functionResponse: { id: fc.id, name: tool, response: { status: "Offered to the user as an Open button in their own browser." } } });
+        responses.push({ functionResponse: { id: fc.id, name: tool, response: { status: "An Open button is now shown to the user. Say the page is ready to open with the Open button; do not say it is already open." } } });
         continue;
       }
       if (tool === "use_computer") {

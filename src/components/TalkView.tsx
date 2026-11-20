@@ -89,7 +89,7 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
   const recent = j.tasks.slice(0, 5);
   const reminders = j.ws.reminders.slice(-4).reverse();
   const pendingTask = j.pending ? j.tasks.find((t) => t.id === j.pending!.taskId) : null;
-  const computerTask = j.tasks.find((t) => t.computer);
+  const computerTask = j.tasks.find((t) => t.computer && t.chatId === j.chat.id && !cleanStatus(t.computer.status).problem);
 
   return (
     <div className={`talk ${aside ? "" : "no-aside"}`}>
