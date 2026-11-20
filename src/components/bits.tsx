@@ -144,7 +144,15 @@ export function StepRow({ s }: { s: Step }) {
   );
 }
 
+/** Older saved runs may hold a raw service error; show it as a plain sentence. */
+export function cleanStatus(status: string): { text: string; problem: boolean } {
+  if (/429|RESOURCE_EXHAUSTED|503|UNAVAILABLE/i.test(status)) return { text: "Google's AI was busy at that moment, so this run stopped early. Ask again and Jarvis will carry on.", problem: true };
+  const text = status.replace(/\{.*$/s, "").replace(/:\s*$/, "").trim() || "Stopped.";
+  return { text, problem: /problem|stopped|failed|error/i.test(text) };
+}
+
 export function Browser({ computer, waiting }: { computer: NonNullable<Task["computer"]>; waiting: boolean }) {
+  const st = cleanStatus(computer.status);
   return (
     <div className="browser">
       <div className="browser-bar"><i /><i /><i /><span className="browser-url">{computer.url}</span></div>
@@ -152,7 +160,7 @@ export function Browser({ computer, waiting }: { computer: NonNullable<Task["com
       <div className="browser-body">
         {computer.fields.length > 0 && <b>Reserve a table</b>}
         {computer.fields.map((f) => <label key={f.label}>{f.label}<input readOnly value={f.value} /></label>)}
-        <div className={`browser-status ${waiting ? "wait" : "ok"}`}>{computer.status}</div>
+        <div className={`browser-status ${waiting || st.problem ? "wait" : "ok"}`}>{st.text}</div>
       </div>
     </div>
   );

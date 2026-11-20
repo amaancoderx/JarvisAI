@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { AppIcon } from "./AppIcon";
 import { JarvisMark, type MarkState } from "./JarvisMark";
-import { Browser, LiveScreen, Rich, StatusChip, TaskProgress, ago, ist } from "./bits";
+import { Browser, LiveScreen, Rich, StatusChip, TaskProgress, ago, cleanStatus, ist } from "./bits";
 import { useTab } from "./tab";
 import { useJarvis } from "./store";
 import { LiveVoice, type VoiceState } from "./voice";
@@ -178,7 +178,7 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
                   <div className="msg jarvis"><Rich text={m.text} /></div>
                   {last && t.computer?.image && t.status !== "working" && (
                     <div className="shot-block">
-                      <div className="shot-head"><span className="grow">{t.steps.some((s) => s.tool === "use_computer") ? "The screen when Jarvis stopped" : "What Jarvis opened"}</span><span className={`chip ${t.computer.status.startsWith("Paused") ? "warn" : "done"}`}>{t.computer.status.startsWith("Paused") ? "Waiting for you" : "Done"}</span></div>
+                      <div className="shot-head"><span className="grow">{t.steps.some((s) => s.tool === "use_computer") ? "The screen when Jarvis stopped" : "What Jarvis opened"}</span><span className={`chip ${t.computer.status.startsWith("Paused") || cleanStatus(t.computer.status).problem ? "warn" : "done"}`}>{t.computer.status.startsWith("Paused") ? "Waiting for you" : cleanStatus(t.computer.status).problem ? "Stopped early" : "Done"}</span></div>
                       <Browser computer={t.computer} waiting={t.computer.status.startsWith("Paused")} />
                       <a className="text-btn" href="#/computers">Open the Jarvis Cloud Computer</a>
                     </div>
