@@ -11,6 +11,7 @@ export const TIERS: Record<string, Tier> = {
   search_email: "read",
   check_availability: "read",
   use_computer: "read",
+  open_in_browser: "read",
   draft_email: "reversible",
   update_event: "reversible",
   save_document: "reversible",

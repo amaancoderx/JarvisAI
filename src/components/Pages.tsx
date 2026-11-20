@@ -5,6 +5,7 @@ import { JarvisMark } from "./JarvisMark";
 import { AppIcon } from "./AppIcon";
 import { Browser, Rich, StatusChip, StepRow, ago, appOf, ist } from "./bits";
 import { useJarvis, type Task } from "./store";
+import { chooseFolder, connectTab, disconnectTab, folderSupported, shareScreen, stopScreen, useTab } from "./tab";
 import type { View } from "./Shell";
 
 type Go = (v: View, id?: string) => void;
@@ -471,6 +472,8 @@ export function ComputersPage() {
         </div>
       </div>
 
+      <BrowserTabCard />
+
       {s && s.log.length > 0 && (
         <section className="section">
           <div className="section-head"><h2>Steps</h2><span className="count">{s.log.length}</span></div>
@@ -638,3 +641,33 @@ export function HowPage({ go }: { go: Go }) {
 }
 
 export type { Task };
+
+function BrowserTabCard() {
+  const t = useTab();
+  const [msg, setMsg] = useState<string | null>(null);
+  const run = async (f: () => Promise<string | null>) => setMsg(await f());
+  return (
+    <div className="card stack" style={{ maxWidth: 640 }}>
+      <div className="row"><span className="tile accent"><Icon name="device" size={16} /></span><div className="grow"><b>Just this browser tab</b><div className="small muted">No download, while this page is open</div></div><span className={`chip ${t.connected ? "done" : "plain"}`}>{t.connected ? "Connected" : "Not connected"}</span></div>
+      {!t.connected ? (
+        <>
+          <p className="computer-what" style={{ margin: 0 }}>Let Jarvis see your screen when you ask about it, work with files in a folder you choose, and open pages in this browser. Nothing to install.</p>
+          <ul className="computer-can"><li>"What does this email say?"</li><li>"Find my resume and summarise it"</li><li>"Open my bank website"</li></ul>
+          <div><button className="btn" onClick={connectTab}>Connect</button></div>
+          <div className="small muted">Works while this page is open. Your browser will ask which screen to share; pick Entire screen.</div>
+        </>
+      ) : (
+        <>
+          <div className="group">
+            <div className="group-row"><Icon name={t.screen ? "check" : "circle"} size={16} /><div className="grow"><div className="title">Screen</div><div className="desc">{t.screen ? "Shared. Jarvis looks only when you ask about it." : "Not shared"}</div></div>{t.screen ? <button className="btn sm ghost" onClick={stopScreen}>Stop</button> : <button className="btn sm" onClick={() => void run(shareScreen)}>Share screen</button>}</div>
+            <div className="group-row"><Icon name={t.folder ? "check" : "circle"} size={16} /><div className="grow"><div className="title">Folder</div><div className="desc">{t.folder ? `${t.folder} · ${t.files.length} files` : folderSupported() ? "None chosen" : "Needs Chrome or Edge"}</div></div><button className="btn sm" disabled={!folderSupported()} onClick={() => void run(chooseFolder)}>{t.folder ? "Change" : "Choose a folder"}</button></div>
+            <div className="group-row"><Icon name="check" size={16} /><div className="grow"><div className="title">Open pages</div><div className="desc">In this browser, signed in as you</div></div></div>
+          </div>
+          <div className="row"><button className="btn ghost" onClick={disconnectTab}>Disconnect</button><a className="text-btn" href="#/talk">Ask Jarvis now</a></div>
+          <div className="small muted">Works while this Jarvis page is open. A website cannot use your apps, mouse or keyboard; for that work, Jarvis uses its Cloud Computer.</div>
+        </>
+      )}
+      {msg && <div className="small" style={{ color: "var(--danger)" }}>{msg}</div>}
+    </div>
+  );
+}

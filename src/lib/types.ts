@@ -56,5 +56,14 @@ export interface AgentResult {
   history: unknown[];
   workspace: Workspace;
   computer?: { url: string; fields: { label: string; value: string }[]; status: string; image?: string; title?: string } | null;
+  /** Pages Jarvis asks to open in the owner's own browser. */
+  openUrls?: { url: string; why: string }[];
   timings: { totalMs: number; modelCalls: number };
+}
+
+/** What this browser tab shares with Jarvis for one request. */
+export interface TabContext {
+  screen?: string; // base64 jpeg of the shared screen, captured when the message was sent
+  folder?: { name: string; files: string[] };
+  files?: { name: string; mime: string; data: string }[]; // base64, matched to the request by name
 }

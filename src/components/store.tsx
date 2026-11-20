@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { seedWorkspace } from "@/lib/workspace";
+import { tabContext } from "./tab";
 import type { AgentResult, Lang, Pending, Source, Step, Workspace } from "@/lib/types";
 
 export type TaskStatus = "working" | "waiting" | "done" | "blocked" | "failed";
@@ -28,6 +29,8 @@ interface State {
   computer: AgentResult["computer"]; lang: Lang; busy: boolean; routines: Routine[];
   /** The workspace not in use, kept so switching never mixes real and sample data. */
   stash?: Partial<Record<"google" | "sample", Workspace>>;
+  /** Pages Jarvis offered to open in this browser. */
+  opens?: { id: string; url: string; why: string }[];
 }
 
 function fresh(): State {
@@ -58,6 +61,7 @@ interface Api extends State {
   sync: () => Promise<void>;
   syncing: boolean;
   openOnComputer: (url: string) => Promise<string | null>;
+  dismissOpen: (id: string) => void;
   learning: string | null;
   learn: (source: LearnSource, extra?: { text?: string; name?: string; mime?: string; data?: string }) => Promise<{ facts: number; people: number; error?: string }>;
   chat: Chat;
@@ -163,7 +167,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
         const msgs = kind === "approval" ? c.msgs.filter((m) => m.taskId !== taskId) : c.msgs;
         return { ...c, history: r.history, msgs: [...msgs, { id: uid("m"), who: "jarvis", text: r.reply, taskId }] };
       });
-      return { ...st, ws: r.workspace, tasks, chats, pending: r.pending ? { ...r.pending, taskId } : null, computer: r.computer ?? st.computer };
+      const opens = [...(st.opens ?? []), ...(r.openUrls ?? []).map((o) => ({ id: uid("o"), ...o }))];
+      return { ...st, ws: r.workspace, tasks, chats, opens, pending: r.pending ? { ...r.pending, taskId } : null, computer: r.computer ?? st.computer };
     });
   }, []);
 
@@ -257,7 +262,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       ...x, busy: true, tasks: [task, ...x.tasks],
       chats: patchChat(x, chat.id, (c) => ({ ...c, title: c.msgs.length ? c.title : t.slice(0, 48), at: new Date().toISOString(), msgs: [...c.msgs, { id: uid("m"), who: "user", text: t, voice }] })),
     }));
-    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google", voice });
+    const tab = await tabContext(t).catch(() => undefined);
+    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google", voice, tab });
     if (out.ok) {
       apply(taskId, chat.id, out.r, "request");
       // The memory learns from the conversation in the background, like a brain: lasting facts only.
@@ -326,6 +332,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<Api>(() => ({
     ...s, live, connect, disconnect, space, setSpace, sync, syncing, learn, learning, openOnComputer,
+    dismissOpen: (id: string) => setS((x) => ({ ...x, opens: (x.opens ?? []).filter((o) => o.id !== id) })),
     chat: s.chats.find((c) => c.id === s.chatId) ?? s.chats[0],
     send, decide,
     newChat: () => setS((x) => {

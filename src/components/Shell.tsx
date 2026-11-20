@@ -129,6 +129,21 @@ export function Shell({ view, go, children }: { view: View; go: (v: View, id?: s
         </div>
       </aside>
       <div className="main">{children}</div>
+      {(j.opens ?? []).length > 0 && (
+        <div className="open-banner">
+          {(j.opens ?? []).map((o) => (
+            <div key={o.id} className="card stack-sm" style={{ boxShadow: "var(--shadow-lg)" }}>
+              <div style={{ fontWeight: 600 }}>Jarvis wants to open a page for you</div>
+              <div className="small muted truncate">{o.url}</div>
+              {o.why && <div className="small">{o.why}</div>}
+              <div className="row">
+                <button className="btn sm" onClick={() => { window.open(o.url, "_blank", "noopener"); j.dismissOpen(o.id); }}>Open</button>
+                <button className="btn sm ghost" onClick={() => j.dismissOpen(o.id)}>Not now</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -54,6 +54,10 @@ export const DECLARATIONS: FunctionDeclaration[] = [
     parameters: { type: Type.OBJECT, properties: { id: S("Drive file id"), name: S("File name, for the approval card"), email: S("Person's email"), role: S("reader, commenter or writer") }, required: ["id", "email"] },
   },
   {
+    name: "open_in_browser", description: "Open a page in the user's own browser (where they are signed in), for things they want to see or do themselves, like their bank site.",
+    parameters: { type: Type.OBJECT, properties: { url: S("Full URL"), why: S("Short reason shown to the user") }, required: ["url"] },
+  },
+  {
     name: "use_computer", description: "Use the Jarvis Cloud Computer: a real browser Jarvis operates step by step (Gemini Computer Use) for multi-step tasks on websites, like finding availability, comparing listings or filling forms. It stops before anything is submitted.",
     parameters: { type: Type.OBJECT, properties: { goal: S("What to do, specific and complete") }, required: ["goal"] },
   },
@@ -73,7 +77,7 @@ export const DECLARATIONS: FunctionDeclaration[] = [
 
 export const LABELS: Record<string, string> = {
   read_inbox: "Read inbox", read_email: "Read email", list_events: "Checked calendar", create_event: "Created event",
-  send_email: "Send email", send_whatsapp: "Send WhatsApp", search_web: "Searched the web (Google Search)", open_website: "Read website", search_email: "Searched Gmail", draft_email: "Saved Gmail draft", check_availability: "Checked availability", update_event: "Updated event", cancel_event: "Cancel event", save_document: "Saved to Google Drive", share_file: "Share file", use_computer: "Jarvis Cloud Computer", search_drive: "Searched Google Drive", read_drive_file: "Read Drive file",
+  send_email: "Send email", send_whatsapp: "Send WhatsApp", search_web: "Searched the web (Google Search)", open_website: "Read website", search_email: "Searched Gmail", draft_email: "Saved Gmail draft", check_availability: "Checked availability", update_event: "Updated event", cancel_event: "Cancel event", save_document: "Saved to Google Drive", share_file: "Share file", use_computer: "Jarvis Cloud Computer", open_in_browser: "Open in your browser", search_drive: "Searched Google Drive", read_drive_file: "Read Drive file",
   book_table: "Cloud computer: booking", remember: "Saved to memory", recall_memory: "Recalled memory", set_reminder: "Set reminder",
 };
 

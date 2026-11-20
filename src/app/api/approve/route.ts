@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       live,
       voice: body.voice === true,
       uid: u.id,
+      tab: body.tab && typeof body.tab === "object" ? body.tab : undefined,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace,
       lang: ["en", "hi", "te"].includes(body.lang) ? body.lang : "en",
