@@ -135,7 +135,7 @@ function guessSkill(t: string): string {
 /** Research skill: Gemini with Google Search grounding, so answers are current and cited. */
 export async function searchWeb(query: string): Promise<{ answer: string; sources: Source[] }> {
   const req = {
-    contents: `Answer briefly and factually, with concrete names, prices or dates where useful. Question: ${query}`,
+    contents: `Research this with Google Search and answer factually and specifically: concrete names, numbers, prices, dates and what changed, in 6 to 12 tight bullet points. Say when information is uncertain. Question: ${query}`,
     config: { tools: [{ googleSearch: {} }], temperature: 0.2 },
   };
   // Search grounding has its own quota; a separate key can carry it (SEARCH_API_KEY), with the main key as a fallback.
@@ -166,4 +166,25 @@ export async function searchWeb(query: string): Promise<{ answer: string; source
     if (sources.length >= 5) break;
   }
   return { answer: r.text || "", sources };
+}
+
+
+/** Reads a public web page as plain text, for the open_website skill. Blocks private network addresses. */
+export async function readPage(raw: string): Promise<{ url: string; title: string; text: string }> {
+  let url = raw.trim();
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  const u = new URL(url);
+  if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1)/i.test(u.hostname) || u.hostname.endsWith(".internal")) throw new Error("That address is not allowed.");
+  const res = await fetch(u, { redirect: "follow", signal: AbortSignal.timeout(12000), headers: { "user-agent": "Mozilla/5.0 (compatible; JarvisAgent/1.0)", accept: "text/html,text/plain;q=0.9,*/*;q=0.5" } });
+  if (!res.ok) throw new Error(`The page returned ${res.status}.`);
+  const html = (await res.text()).slice(0, 1_500_000);
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").replace(/\s+/g, " ").trim();
+  const text = html
+    .replace(/<(script|style|noscript|svg|nav|footer|header|form)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|li|h[1-6]|tr|section|article|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim()
+    .slice(0, 12000);
+  return { url: res.url || u.toString(), title, text };
 }

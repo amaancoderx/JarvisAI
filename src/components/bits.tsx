@@ -16,22 +16,72 @@ export const ago = (iso: string) => {
   return ist(iso, { day: "numeric", month: "short" });
 };
 
-/** Plain reply text with **bold**, line breaks and links. */
+/** Inline Markdown: **bold**, *italic*, `code` and [links](https://...). */
+function inline(text: string, key = 0): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\)|\*[^*\s][^*]*\*)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let n = 0;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const t = m[0];
+    const k = `${key}-${n++}`;
+    if (t.startsWith("**")) out.push(<strong key={k}>{t.slice(2, -2)}</strong>);
+    else if (t.startsWith("`")) out.push(<code key={k}>{t.slice(1, -1)}</code>);
+    else if (t.startsWith("[")) {
+      const mm = t.match(/^\[([^\]]+)\]\(([^)]+)\)$/)!;
+      out.push(<a key={k} href={mm[2]} target="_blank" rel="noreferrer">{mm[1]}</a>);
+    } else out.push(<em key={k}>{t.slice(1, -1)}</em>);
+    last = m.index + t.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out.map((x) => (typeof x === "string" ? x.replace(/\([*_#|])/g, "$1") : x));
+}
+
+/** Jarvis's answers as clean reading text: headings, lists, tables, bold and links. */
 export function Rich({ text }: { text: string }) {
-  return (
-    <div className="rich">
-      {text.split(/\n{2,}/).map((para, i) => (
-        <p key={i}>
-          {para.split("\n").map((line, k) => (
-            <Fragment key={k}>
-              {k > 0 && <br />}
-              {line.split(/(\*\*[^*]+\*\*)/).map((part, n) => (part.startsWith("**") && part.endsWith("**") ? <strong key={n}>{part.slice(2, -2)}</strong> : <Fragment key={n}>{part}</Fragment>))}
-            </Fragment>
-          ))}
-        </p>
-      ))}
-    </div>
-  );
+  const lines = text.replace(/\r/g, "").split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+  let b = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { blocks.push(h[1].length <= 2 ? <h3 key={b++}>{inline(h[2], b)}</h3> : <h4 key={b++}>{inline(h[2], b)}</h4>); i++; continue; }
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) { blocks.push(<hr key={b++} />); i++; continue; }
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+      const cells = (l: string) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      const head = cells(line);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+      blocks.push(
+        <div key={b++} className="rich-table"><table><thead><tr>{head.map((c, k) => <th key={k}>{inline(c, k)}</th>)}</tr></thead>
+          <tbody>{rows.map((r, ri) => <tr key={ri}>{r.map((c, k) => <td key={k}>{inline(c, k)}</td>)}</tr>)}</tbody></table></div>,
+      );
+      continue;
+    }
+    if (/^\s*([-*•])\s+/.test(line)) {
+      const items: [number, string][] = [];
+      while (i < lines.length && /^\s*([-*•])\s+/.test(lines[i])) { const l = lines[i++]; items.push([l.length - l.trimStart().length, l.replace(/^\s*([-*•])\s+/, "")]); }
+      const base = Math.min(...items.map(([d]) => d));
+      blocks.push(<ul key={b++}>{items.map(([d, t], k) => <li key={k} className={d > base ? "sub" : undefined}>{inline(t, k)}</li>)}</ul>);
+      continue;
+    }
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*\d+[.)]\s+/, ""));
+      blocks.push(<ol key={b++}>{items.map((t, k) => <li key={k}>{inline(t, k)}</li>)}</ol>);
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^(#{1,4}\s|\s*[-*•]\s|\s*\d+[.)]\s|\s*\|)/.test(lines[i])) para.push(lines[i++]);
+    if (para.length === 0) { para.push(lines[i++]); }
+    blocks.push(<p key={b++}>{para.map((p, k) => <Fragment key={k}>{k > 0 && <br />}{inline(p, k)}</Fragment>)}</p>);
+  }
+  return <div className="rich">{blocks}</div>;
 }
 
 const STATUS: Record<Task["status"], [string, string]> = {

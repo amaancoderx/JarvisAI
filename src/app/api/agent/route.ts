@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     const live = u.fresh || body.live === false ? undefined : await liveFor(u.id).catch(() => undefined);
     const result = await runAgent({
       live,
+      voice: body.voice === true,
       text,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace ?? seedWorkspace(),

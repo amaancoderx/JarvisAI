@@ -7,6 +7,7 @@ export const TIERS: Record<string, Tier> = {
   read_email: "read",
   list_events: "read",
   search_web: "read",
+  open_website: "read",
   recall_memory: "read",
   remember: "reversible",
   set_reminder: "reversible",
