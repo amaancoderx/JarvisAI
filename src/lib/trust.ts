@@ -65,6 +65,7 @@ function recipientAllowed(recipient: string, ws: Workspace, userText: string): b
 export function decide(tool: string, args: Record<string, unknown>, ws: Workspace, userText: string): Decision {
   const tier = TIERS[tool];
   if (!tier) return { outcome: "deny", reason: "unknown action" };
+  if (ws.disabled?.includes(tool)) return { outcome: "deny", reason: "you switched this action off in Connections" };
   if (tier === "read") return { outcome: "allow" };
   if (ws.paused) return { outcome: "deny", reason: "all actions are paused" };
   if (tier === "reversible") return { outcome: "allow" };

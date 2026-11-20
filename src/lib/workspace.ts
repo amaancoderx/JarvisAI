@@ -52,5 +52,7 @@ export function seedWorkspace(now = new Date()): Workspace {
     audit: [],
     executed: [],
     paused: false,
+    disabled: [],
+    profile: { city: "Hyderabad", languages: "English, Hindi, Telugu", notes: "Prefers short WhatsApp messages. Vegetarian-friendly places when friends join." },
   };
 }

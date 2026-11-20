@@ -9,7 +9,9 @@ const LANG_NAME: Record<Lang, string> = { en: "English", hi: "Hindi", te: "Telug
 
 function system(ws: Workspace, lang: Lang) {
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "full", timeStyle: "short" });
-  return `You are Jarvis, a voice-first personal agent for ${ws.owner}, who lives in Hyderabad, India. Now: ${now} (India time, +05:30).
+  const p = ws.profile;
+  return `You are Jarvis, a voice-first personal agent for ${ws.owner}, who lives in ${p?.city || "Hyderabad"}, India. Now: ${now} (India time, +05:30).
+About ${ws.owner}: speaks ${p?.languages || "English, Hindi, Telugu"}. ${p?.notes || ""}
 
 How you work:
 - Get things done with the tools, step by step. Do not just explain how.

@@ -20,6 +20,9 @@ export interface Workspace {
   audit: AuditEntry[];
   executed: string[];
   paused: boolean;
+  /** Actions the owner switched off on the Connections page. Enforced in code. */
+  disabled?: string[];
+  profile?: { city: string; languages: string; notes: string };
 }
 
 export type Tier = "read" | "reversible" | "external";
