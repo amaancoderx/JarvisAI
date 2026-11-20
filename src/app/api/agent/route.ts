@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const text = String(body.text ?? "").slice(0, 2000).trim();
     if (!text) return Response.json({ error: "Say or type something first." }, { status: 400 });
     const u = userId(req);
-    const live = u.fresh ? undefined : await liveFor(u.id).catch(() => undefined);
+    const live = u.fresh || body.live === false ? undefined : await liveFor(u.id).catch(() => undefined);
     const result = await runAgent({
       live,
       text,

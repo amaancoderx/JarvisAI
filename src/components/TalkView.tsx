@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { AppIcon } from "./AppIcon";
 import { JarvisMark, type MarkState } from "./JarvisMark";
 import { Browser, Rich, StatusChip, TaskProgress, ago, ist } from "./bits";
 import { useJarvis } from "./store";
@@ -25,7 +26,6 @@ const LIVE_SUGGEST: { lang: Lang; kind: string; text: string }[] = [
   { lang: "te", kind: "Reminder · తెలుగు", text: "రేపు సాయంత్రం 7 గంటలకు అమ్మకి కాల్ చేయమని గుర్తు చేయి" },
   { lang: "en", kind: "Live web answer", text: "What are the biggest AI announcements this week?" },
 ];
-const MODE = "jarvis.mode";
 
 const greeting = () => {
   const h = Number(new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", hour12: false }));
@@ -38,9 +38,10 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
   const [voice, setVoice] = useState<{ state: VoiceState; note?: string }>({ state: "idle" });
   const [live, setLive] = useState("");
   const [aside, setAside] = useState(true);
-  const [mode, setMode] = useState<string | null>(() => { try { return localStorage.getItem(MODE); } catch { return null; } });
-  const pickMode = (m: string) => { setMode(m); try { localStorage.setItem(MODE, m); } catch { /* not kept */ } };
-  const isLive = j.live.gmail || j.live.calendar;
+  const connected = j.live.gmail || j.live.calendar;
+  const isLive = j.space === "google" && connected;
+  const mode = j.space === "sample" ? "sample" : null;
+  const useGoogle = () => (connected ? j.setSpace("google") : void j.connect("gmail"));
   const voiceRef = useRef<LiveVoice | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const jr = useRef(j);
@@ -92,9 +93,12 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
           <span className="name">Jarvis</span>
           <span className="small muted">{status}</span>
           <span className="grow" />
-          {j.live.gmail || j.live.calendar
-            ? <a href="#/connections" className="chip done" title="Your real Google account is connected">Live{j.live.email ? ` · ${j.live.email}` : ""}</a>
-            : <a href="#/connections" className="chip demo" title="Sample inbox, calendar and contacts. Real Gemini and Google Search. Connect Google to use your own Gmail and Calendar.">Sample inbox · Connect Google</a>}
+          {j.space && (
+            <div className="seg space-seg" role="radiogroup" aria-label="Workspace">
+              <button role="radio" aria-checked={isLive} className={isLive ? "on" : ""} onClick={useGoogle} title={j.live.email ?? "Connect your Google account"}><AppIcon app="search" size={14} />{isLive && j.live.email ? j.live.email.split("@")[0] : "Your Google"}</button>
+              <button role="radio" aria-checked={!isLive} className={!isLive ? "on" : ""} onClick={() => j.setSpace("sample")} title="Sample inbox and calendar; the AI is real">Sample</button>
+            </div>
+          )}
           {j.ws.paused && <span className="chip warn">Actions paused</span>}
           <div className="seg lang-seg" role="radiogroup" aria-label="Language">
             {([["en", "EN"], ["hi", "हिं"], ["te", "తె"]] as [Lang, string][]).map(([k, l]) => (
@@ -113,16 +117,21 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
                 {!isLive && mode !== "sample" ? (
                   <>
                     <p>Jarvis is a voice-first AI agent. Say what you need in English, हिंदी or తెలుగు, and it gets it done across Gmail, Calendar and the web, asking before anything goes out.</p>
-                    <div className="mode-grid" style={{ width: "min(620px, 100%)", marginTop: 10 }}>
-                      <button className="mode on" onClick={() => void j.connect("gmail")} disabled={!j.live.available}>
-                        <span className="row"><Icon name="user" size={16} /><span className="title">Use your Google account</span><span className="chip done" style={{ marginLeft: "auto" }}>Recommended</span></span>
-                        <span className="desc">Connect Gmail and Calendar with Google sign-in. Jarvis works on your real inbox and events; every send waits for your OK.</span>
+                    <div className="start-grid">
+                      <button className="start primary" onClick={useGoogle} disabled={!j.live.available}>
+                        <span className="start-icons"><AppIcon app="gmail" size={26} /><AppIcon app="calendar" size={26} /></span>
+                        <span className="title">{connected ? "Continue with your Google account" : "Continue with Google"}</span>
+                        <span className="desc">Your real Gmail and Calendar. Google sign-in in a small window; every send waits for your OK.</span>
+                        <span className="btn sm accent start-cta">{connected ? "Open my workspace" : "Connect Google"}</span>
                       </button>
-                      <button className="mode" onClick={() => pickMode("sample")}>
-                        <span className="row"><Icon name="play" size={16} /><span className="title">Try instantly</span></span>
-                        <span className="desc">No sign-in. A sample inbox and calendar, with the same real AI: Gemini, Google Search and live voice.</span>
+                      <button className="start" onClick={() => j.setSpace("sample")}>
+                        <span className="start-icons"><AppIcon app="gemini" size={26} /><AppIcon app="search" size={26} /></span>
+                        <span className="title">Explore with sample data</span>
+                        <span className="desc">No sign-in. A ready inbox and calendar, with the same real Gemini, Google Search and voice.</span>
+                        <span className="btn sm ghost start-cta">Start exploring</span>
                       </button>
                     </div>
+                    <div className="trust-line"><Icon name="audit" size={14} />Tokens stay on our server · approvals are signed to the exact message · switch workspaces any time</div>
                   </>
                 ) : (
                   <p>{isLive ? "Your real Gmail and Calendar are connected. " : "You are using a sample inbox; the AI, search and voice are all real. "}Ask by voice or by typing. Jarvis plans it, checks it is allowed, does it, and asks before anything goes out.</p>
@@ -136,7 +145,7 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
                   ))}
                 </div>}
                 {mode === "sample" && !isLive && j.live.available && (
-                  <button className="text-btn" onClick={() => void j.connect("gmail")}>Or connect your Google account to use your real Gmail</button>
+                  <button className="text-btn" onClick={useGoogle}>{connected ? "Switch to your Google account" : "Connect your Google account to use your real Gmail"}</button>
                 )}
               </div>
             )}

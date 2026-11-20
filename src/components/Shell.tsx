@@ -112,16 +112,18 @@ export function Shell({ view, go, children }: { view: View; go: (v: View, id?: s
         <div className="side-foot" ref={menuRef}>
           {menu && (
             <div className="side-menu" role="menu">
-              <div className="side-menu-who truncate">Demo workspace · sample data, nothing leaves it</div>
+              <div className="side-menu-who truncate">{j.space === "google" ? (j.live.email ?? "Your Google account") : "Sample workspace"}</div>
+              <button role="menuitem" className="side-menu-item" onClick={() => (j.space === "google" ? j.setSpace("sample") : j.live.gmail || j.live.calendar ? j.setSpace("google") : void j.connect("gmail"))}><Icon name="repeat" size={16} />{j.space === "google" ? "Switch to sample workspace" : "Use your Google account"}</button>
+              <a href="#/connections" role="menuitem" className="side-menu-item"><Icon name="connections" size={16} />Connections</a>
               <a href="#/about" role="menuitem" className="side-menu-item"><Icon name="user" size={16} />About you</a>
               <a href="#/settings" role="menuitem" className="side-menu-item"><Icon name="settings" size={16} />Settings</a>
               <div className="side-menu-sep" />
-              <button role="menuitem" className="side-menu-item" onClick={() => { if (window.confirm("Reset the demo workspace and chats?")) { j.reset(); go("talk"); } }}><Icon name="repeat" size={16} />Reset demo</button>
+              <button role="menuitem" className="side-menu-item" onClick={() => { if (window.confirm("Clear chats and reset the workspace?")) { j.reset(); go("talk"); } }}><Icon name="x" size={16} />Reset workspace</button>
             </div>
           )}
           <button className={`side-account ${menu ? "on" : ""}`} onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} title={collapsed ? j.ws.owner : undefined}>
-            <span className="avatar">{j.ws.owner.slice(0, 1).toUpperCase()}</span>
-            <span className="side-text grow truncate">{j.ws.owner} <span className="faint">· demo</span></span>
+            <span className="avatar">{(j.space === "google" && j.live.email ? j.live.email : j.ws.owner).slice(0, 1).toUpperCase()}</span>
+            <span className="side-text grow truncate">{j.space === "google" && j.live.email ? j.live.email : <>{j.ws.owner} <span className="faint">· sample</span></>}</span>
             <span className="side-text side-account-more"><Icon name="dots" size={16} /></span>
           </button>
         </div>

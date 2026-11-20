@@ -35,8 +35,13 @@ function fresh(): State {
 
 export interface LiveState { available: boolean; gmail: boolean; calendar: boolean; email: string | null }
 
+export type Space = "google" | "sample" | null;
+
 interface Api extends State {
   live: LiveState;
+  /** Which workspace Jarvis works in: the owner's real Google account, or sample data. */
+  space: Space;
+  setSpace: (s: "google" | "sample") => void;
   connect: (app: "gmail" | "calendar") => Promise<void>;
   disconnect: (app: "gmail" | "calendar") => Promise<void>;
   chat: Chat;
@@ -80,6 +85,10 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     return null;
   }, []);
   useEffect(() => { void refreshLive(); }, [refreshLive]);
+  const [space, setSpaceState] = useState<Space>(() => { try { return (localStorage.getItem("jarvis.space") as Space) || null; } catch { return null; } });
+  const spaceRef = useRef(space);
+  spaceRef.current = space;
+  const keepSpace = (v: Space) => { setSpaceState(v); try { if (v) localStorage.setItem("jarvis.space", v); } catch { /* not kept */ } };
   const ref = useRef(s);
   ref.current = s;
 
@@ -134,7 +143,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       ...x, busy: true, tasks: [task, ...x.tasks],
       chats: patchChat(x, chat.id, (c) => ({ ...c, title: c.msgs.length ? c.title : t.slice(0, 48), at: new Date().toISOString(), msgs: [...c.msgs, { id: uid("m"), who: "user", text: t, voice }] })),
     }));
-    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang });
+    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google" });
     if (out.ok) apply(taskId, chat.id, out.r, "request");
     else setS((x) => ({ ...x, tasks: x.tasks.map((k) => (k.id === taskId ? { ...k, status: "failed", reply: out.error } : k)), chats: patchChat(x, chat.id, (c) => ({ ...c, msgs: [...c.msgs, { id: uid("m"), who: "jarvis", text: out.error, error: true }] })) }));
     setS((x) => ({ ...x, busy: false }));
@@ -149,7 +158,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     const chat = st.chats.find((c) => c.id === (task?.chatId ?? st.chatId)) ?? st.chats[0];
     setS((x) => ({ ...x, busy: true, pending: null, tasks: x.tasks.map((t) => (t.id === p.taskId ? { ...t, status: "working" } : t)) }));
     const { taskId: _t, ...pending } = p;
-    const out = await post("/api/approve", { pending, approve, history: chat.history, workspace: st.ws, lang: st.lang });
+    const out = await post("/api/approve", { pending, approve, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google" });
     if (out.ok) apply(p.taskId, chat.id, out.r, "approval");
     else setS((x) => ({ ...x, pending: p, tasks: x.tasks.map((t) => (t.id === p.taskId ? { ...t, status: "waiting" } : t)), chats: patchChat(x, chat.id, (c) => ({ ...c, msgs: [...c.msgs, { id: uid("m"), who: "jarvis", text: out.error, error: true }] })) }));
     setS((x) => ({ ...x, busy: false }));
@@ -167,6 +176,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       if (st && (app === "gmail" ? st.gmail : st.calendar)) {
         // Real data replaces the sample data for that app.
         setS((x) => ({ ...x, ws: app === "gmail" ? { ...x.ws, inbox: [], sent: [] } : { ...x.ws, calendar: [] } }));
+        keepSpace("google");
         try { w?.close(); } catch { /* closed */ }
         return;
       }
@@ -179,8 +189,15 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     setS((x) => { const seed = fresh().ws; return { ...x, ws: app === "gmail" ? { ...x.ws, inbox: seed.inbox } : { ...x.ws, calendar: seed.calendar } }; });
   }, [refreshLive]);
 
+  const setSpace = useCallback((v: "google" | "sample") => {
+    keepSpace(v);
+    const seed = fresh().ws;
+    // Each workspace starts from its own data: real mail and events are fetched on demand; sample data is restored.
+    setS((x) => ({ ...x, pending: null, ws: v === "sample" ? { ...x.ws, inbox: seed.inbox, calendar: seed.calendar, contacts: seed.contacts, sent: [] } : { ...x.ws, inbox: [], calendar: [], sent: [] } }));
+  }, []);
+
   const api = useMemo<Api>(() => ({
-    ...s, live, connect, disconnect,
+    ...s, live, connect, disconnect, space, setSpace,
     chat: s.chats.find((c) => c.id === s.chatId) ?? s.chats[0],
     send, decide,
     newChat: () => setS((x) => {
@@ -199,7 +216,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     updateWs: (f) => setS((x) => ({ ...x, ws: f(x.ws) })),
     setRoutines: (routines) => setS((x) => ({ ...x, routines })),
     reset: () => setS(fresh()),
-  }), [s, send, decide, live, connect, disconnect]);
+  }), [s, send, decide, live, connect, disconnect, space, setSpace]);
 
   if (!loaded) return null;
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

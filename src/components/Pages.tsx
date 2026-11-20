@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Icon, type IconName } from "./Icon";
 import { JarvisMark } from "./JarvisMark";
+import { AppIcon } from "./AppIcon";
 import { Browser, Rich, StatusChip, StepRow, ago, appOf, ist } from "./bits";
 import { useJarvis, type Task } from "./store";
 import type { View } from "./Shell";
@@ -132,7 +133,7 @@ export function RoutinesPage({ go }: { go: Go }) {
           </div>
         ))}
       </div>
-      <p className="small muted">On Google Cloud, routines run from Cloud Scheduler. In this demo they run when you press Run now.</p>
+      <p className="small muted">Routines run on schedule from Cloud Scheduler. Press Run now to see one work immediately.</p>
     </div>
   );
 }
@@ -179,7 +180,7 @@ export function InboxPage({ go }: { go: Go }) {
   const j = useJarvis();
   return (
     <div className="page">
-      <Head title="Inbox" sub="The demo Gmail inbox Jarvis works with. One email is a phishing attempt that tries to give Jarvis orders; watch it get quarantined." />
+      <Head title="Inbox" sub={j.space === "google" ? "Your Gmail, as Jarvis last read it. Ask Jarvis to go through it; anything that tries to give Jarvis orders gets quarantined." : "The sample inbox. One email is a phishing attempt that tries to give Jarvis orders; watch it get quarantined."} />
       <div className="stack">
         {j.ws.inbox.map((e) => (
           <div key={e.id} className={`card mail ${e.trusted ? "" : "untrusted"}`}>
@@ -201,43 +202,105 @@ export function InboxPage({ go }: { go: Go }) {
 }
 
 /* ---------- Connections ---------- */
-const APPS: { name: string; icon: IconName; what: string; actions: [string, string][] }[] = [
-  { name: "Gmail", icon: "send", what: "Read, triage and reply to email.", actions: [["read_inbox", "Read inbox"], ["send_email", "Send email (asks first)"]] },
-  { name: "Google Calendar", icon: "clock", what: "Check, create and move events.", actions: [["list_events", "Read calendar"], ["create_event", "Create events"]] },
-  { name: "WhatsApp", icon: "talk", what: "Message your people in their language.", actions: [["send_whatsapp", "Send messages (asks first)"]] },
-  { name: "Jarvis computer", icon: "panel", what: "Browse, fill forms and book on any website.", actions: [["book_table", "Make bookings (asks first)"]] },
-  { name: "Google Search", icon: "external", what: "Live answers with sources, through Gemini grounding.", actions: [["search_web", "Search the web"]] },
-  { name: "Reminders and memory", icon: "bell", what: "Remember people and remind you on time.", actions: [["set_reminder", "Set reminders"], ["remember", "Save to memory"]] },
-];
-export function ConnectionsPage() {
+const ACTIONS: Record<string, [string, string][]> = {
+  gmail: [["read_inbox", "Read and triage email"], ["send_email", "Send email (asks first)"]],
+  calendar: [["list_events", "Read calendar"], ["create_event", "Create and move events"]],
+  whatsapp: [["send_whatsapp", "Send messages (asks first)"]],
+  computer: [["book_table", "Fill forms and book (asks before submit)"]],
+  search: [["search_web", "Search the live web"]],
+  reminders: [["set_reminder", "Set reminders"], ["remember", "Save to memory"]],
+};
+function ActionSwitches({ app }: { app: string }) {
   const j = useJarvis();
   const off = new Set(j.ws.disabled ?? []);
-  const toggle = (tool: string) => j.updateWs((w) => { const d = new Set(w.disabled ?? []); d.has(tool) ? d.delete(tool) : d.add(tool); return { ...w, disabled: [...d] }; });
+  const toggle = (tool: string) => j.updateWs((w) => { const d = new Set(w.disabled ?? []); if (d.has(tool)) d.delete(tool); else d.add(tool); return { ...w, disabled: [...d] }; });
+  return (
+    <>
+      {(ACTIONS[app] ?? []).map(([tool, label]) => (
+        <label key={tool} className="group-row" style={{ minHeight: 46, paddingLeft: 64 }}>
+          <div className="grow"><span className="title">{label}</span> <span className="mono faint">{tool}</span></div>
+          <input type="checkbox" className="switch" checked={!off.has(tool)} onChange={() => toggle(tool)} />
+        </label>
+      ))}
+    </>
+  );
+}
+function AppRow({ app, title, desc, right }: { app: string; title: string; desc: string; right: React.ReactNode }) {
+  return (
+    <div className="group-row">
+      <span className="tile brand"><AppIcon app={app} /></span>
+      <div className="grow"><div className="title">{title}</div><div className="desc truncate">{desc}</div></div>
+      {right}
+    </div>
+  );
+}
+export function ConnectionsPage() {
+  const j = useJarvis();
+  const [busy, setBusy] = useState<string | null>(null);
+  const google = j.space === "google";
+  const run = async (app: "gmail" | "calendar", f: () => Promise<void>) => { setBusy(app); try { await f(); } finally { setBusy(null); } };
+  const googleApps = [
+    { id: "gmail" as const, title: "Gmail", what: "Read, triage and reply to your email.", on: j.live.gmail },
+    { id: "calendar" as const, title: "Google Calendar", what: "Check, create and move your events.", on: j.live.calendar },
+  ];
+  const connected = googleApps.filter((a) => a.on);
+  const open = googleApps.filter((a) => !a.on);
   return (
     <div className="page">
-      <Head title="Connections" sub="The apps Jarvis works in. Switch any action off and it is blocked in code, whatever the model plans." />
-      <div className="card stack-sm" style={{ borderColor: "var(--accent)" }}>
-        <div className="row"><span className="tile accent"><Icon name="user" size={16} /></span><b className="grow">Your Google account</b>{j.live.gmail || j.live.calendar ? <span className="chip done">Live{j.live.email ? ` · ${j.live.email}` : ""}</span> : <span className="chip plain">Not connected</span>}</div>
-        <div className="small muted">Connect your real Gmail and Google Calendar with Google sign-in. OAuth tokens stay server-side with our OAuth provider, never in this browser, and every send still waits for your OK.</div>
-        {!j.live.available ? <div className="small faint">Google connect is not configured on this server.</div> : (
-          <div className="row wrap">
-            {j.live.gmail ? <button className="btn sm ghost" onClick={() => void j.disconnect("gmail")}>Disconnect Gmail</button> : <button className="btn sm accent" onClick={() => void j.connect("gmail")}><Icon name="send" size={14} />Connect Gmail</button>}
-            {j.live.calendar ? <button className="btn sm ghost" onClick={() => void j.disconnect("calendar")}>Disconnect Calendar</button> : <button className="btn sm accent" onClick={() => void j.connect("calendar")}><Icon name="clock" size={14} />Connect Google Calendar</button>}
-          </div>
-        )}
+      <Head title="Connections" sub="The apps Jarvis can use for you. Every action has its own switch, and switching one off is enforced in code at once." />
+
+      <div className="card tint row" style={{ gap: 12 }}>
+        <span className="tile brand"><AppIcon app={google ? "gmail" : "computer"} /></span>
+        <div className="grow"><div style={{ fontWeight: 600 }}>{google ? "Working in your Google account" : "Working in a sample workspace"}</div><div className="small muted">{google ? `Jarvis reads and acts on ${j.live.email ?? "your account"}. Every send still waits for your OK.` : "A sample inbox, calendar and people, so you can try sends safely. The AI, search and voice are real."}</div></div>
+        <div className="seg">
+          <button className={google ? "on" : ""} onClick={() => (j.live.gmail || j.live.calendar ? j.setSpace("google") : void j.connect("gmail"))}>Your Google</button>
+          <button className={!google ? "on" : ""} onClick={() => j.setSpace("sample")}>Sample</button>
+        </div>
       </div>
-      <div className="grid2">
-        {APPS.map((a) => (
-          <div key={a.name} className="card stack-sm">
-            <div className="row"><span className="tile brand"><Icon name={a.icon} size={16} /></span><b className="grow">{a.name}</b>{(() => { const on = (a.name === "Gmail" && j.live.gmail) || (a.name === "Google Calendar" && j.live.calendar) || a.name === "Google Search"; return <span className={`chip ${on ? "done" : "plain"}`}>{on ? "Live" : "Demo"}</span>; })()}</div>
-            <div className="small muted">{a.what}</div>
-            {a.actions.map(([tool, label]) => (
-              <label key={tool} className="row between small" style={{ cursor: "pointer" }}><span>{label}</span><input type="checkbox" className="switch" checked={!off.has(tool)} onChange={() => toggle(tool)} /></label>
-            ))}
+
+      <section className="section">
+        <div className="section-head"><h2>Connected</h2><span className="count">{connected.length + 2}</span></div>
+        <div className="group">
+          <AppRow app="search" title="Google Search" desc="Live, cited answers through Gemini grounding on Vertex AI." right={<span className="chip done">Built in</span>} />
+          <ActionSwitches app="search" />
+        </div>
+        <div className="group">
+          <AppRow app="reminders" title="Reminders and memory" desc="Remembers people and reminds you on time." right={<span className="chip done">Built in</span>} />
+          <ActionSwitches app="reminders" />
+        </div>
+        {connected.map((a) => (
+          <div key={a.id} className="group">
+            <AppRow app={a.id} title={a.title} desc={j.live.email ?? "Your Google account"} right={<><span className="chip done">Connected</span><button className="btn sm ghost" disabled={busy !== null} onClick={() => void run(a.id, () => j.disconnect(a.id))}>Disconnect</button></>} />
+            <ActionSwitches app={a.id} />
           </div>
         ))}
-      </div>
-      <p className="small muted">Without a connected account, Jarvis uses a sample workspace so anyone can try sends and bookings safely. Google Search and the Gemini models are always live.</p>
+      </section>
+
+      {open.length > 0 && (
+        <section className="section">
+          <div className="section-head"><h2>Connect an app</h2></div>
+          <p className="section-note">One click opens Google's own sign-in in a small window. Jarvis never sees your password, tokens stay on the server, and nothing is sent in your name without your OK.</p>
+          <div className="group">
+            {open.map((a) => (
+              <AppRow key={a.id} app={a.id} title={a.title} desc={j.live.available ? a.what : "Sign-in is not set up on this server yet."}
+                right={<button className="btn sm" disabled={!j.live.available || busy !== null} onClick={() => void run(a.id, () => j.connect(a.id))}>{busy === a.id ? "Waiting for sign-in" : "Connect"}</button>} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="section">
+        <div className="section-head"><h2>In preview</h2></div>
+        <p className="section-note">Jarvis plans these fully and shows you the exact message or form, then records the result here. Live sending switches on once each provider's access is approved.</p>
+        <div className="group">
+          <AppRow app="whatsapp" title="WhatsApp" desc="Message your people in their own language." right={<span className="chip plain">Preview</span>} />
+          <ActionSwitches app="whatsapp" />
+        </div>
+        <div className="group">
+          <AppRow app="computer" title="Jarvis computer" desc="Finds the place, fills the booking form, stops before submit." right={<span className="chip plain">Preview</span>} />
+          <ActionSwitches app="computer" />
+        </div>
+      </section>
     </div>
   );
 }
@@ -359,7 +422,7 @@ export function SettingsPage() {
       <div className="group">
         <label className="group-row"><div className="grow"><div className="title">Pause all actions</div><div className="desc">Stops every send and booking at once. Reading still works.</div></div><input type="checkbox" className="switch" checked={j.ws.paused} onChange={() => j.updateWs((w) => ({ ...w, paused: !w.paused }))} /></label>
         <div className="group-row"><div className="grow"><div className="title">Appearance</div></div><div className="seg">{["light", "dark", "system"].map((t) => <button key={t} className={theme === t ? "on" : ""} onClick={() => pick(t)}>{t[0].toUpperCase() + t.slice(1)}</button>)}</div></div>
-        <div className="group-row"><div className="grow"><div className="title">Reset demo workspace</div><div className="desc">Restores the sample inbox, calendar and people, and clears chats.</div></div><button className="btn sm danger" onClick={() => { if (window.confirm("Reset everything?")) j.reset(); }}>Reset</button></div>
+        <div className="group-row"><div className="grow"><div className="title">Reset workspace</div><div className="desc">Clears chats and restores the sample inbox, calendar and people, and clears chats.</div></div><button className="btn sm danger" onClick={() => { if (window.confirm("Reset everything?")) j.reset(); }}>Reset</button></div>
       </div>
     </div>
   );

@@ -641,3 +641,16 @@ button.panel-item:hover, a.panel-item:hover { color: var(--accent); }
 .task-row { display: flex; align-items: center; gap: 12px; }
 
 button.side-link { width: 100%; text-align: left; }
+
+/* Start screen and workspace switch */
+.start-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: min(640px, 100%); margin-top: 12px; }
+.start { text-align: left; display: grid; gap: 8px; align-content: start; padding: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); transition: border-color .12s, box-shadow .12s, transform .12s; }
+.start:hover:not(:disabled) { border-color: var(--border-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
+.start.primary { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); background: linear-gradient(180deg, var(--accent-soft), var(--bg) 70%); }
+.start .title { font-weight: 650; font-size: 16px; }
+.start .desc { color: var(--muted); font-size: 13.5px; line-height: 1.45; }
+.start-icons { display: flex; gap: 6px; }
+.start-cta { justify-self: start; margin-top: 4px; pointer-events: none; }
+.trust-line { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--faint); margin-top: 4px; }
+.space-seg button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; font-size: 12.5px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .start-grid { grid-template-columns: 1fr; } .space-seg { display: none; } }
