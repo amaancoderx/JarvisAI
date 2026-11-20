@@ -80,11 +80,21 @@ function resign(contents: unknown): unknown {
 }
 
 let client: GoogleGenAI | null = null;
+let keyClient: GoogleGenAI | null = null;
+/** Gemini on Vertex AI when running on Google Cloud (billed to the project), else the Gemini API key. */
 export function ai(): GoogleGenAI {
+  if (process.env.VERTEX_PROJECT) {
+    client ??= new GoogleGenAI({ vertexai: true, project: process.env.VERTEX_PROJECT, location: process.env.VERTEX_LOCATION || "global" });
+    return client;
+  }
+  return keyAi();
+}
+/** The Gemini API key client: Gemma routing and Gemini Live tokens. */
+export function keyAi(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-  client ??= new GoogleGenAI({ apiKey });
-  return client;
+  keyClient ??= new GoogleGenAI({ apiKey });
+  return keyClient;
 }
 
 export const MODELS = {
@@ -110,7 +120,7 @@ The message may be in English, Hindi, Telugu or a mix.
 Message: ${text}`;
   try {
     const r = await Promise.race([
-      ai().models.generateContent({ model: MODELS.router(), contents: prompt, config: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingLevel: "minimal" as never } } }),
+      keyAi().models.generateContent({ model: MODELS.router(), contents: prompt, config: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingLevel: "minimal" as never } } }),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("router timeout")), Number(process.env.ROUTER_TIMEOUT_MS || 2500))),
     ]);
     const out = (r.text || "").trim().toLowerCase();

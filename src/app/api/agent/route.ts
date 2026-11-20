@@ -17,6 +17,7 @@ export async function POST(req: Request) {
     const result = await runAgent({
       live,
       voice: body.voice === true,
+      uid: u.id,
       text,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace ?? seedWorkspace(),

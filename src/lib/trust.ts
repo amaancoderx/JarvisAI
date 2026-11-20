@@ -8,6 +8,14 @@ export const TIERS: Record<string, Tier> = {
   list_events: "read",
   search_web: "read",
   open_website: "read",
+  search_email: "read",
+  check_availability: "read",
+  use_computer: "read",
+  draft_email: "reversible",
+  update_event: "reversible",
+  save_document: "reversible",
+  cancel_event: "external",
+  share_file: "external",
   search_drive: "read",
   read_drive_file: "read",
   recall_memory: "read",
@@ -74,6 +82,9 @@ export function decide(tool: string, args: Record<string, unknown>, ws: Workspac
   if (tier === "reversible") return { outcome: "allow" };
 
   const recipient = String(args.to ?? args.contact ?? "");
+  if (tool === "share_file" && !recipientAllowed(String(args.email ?? ""), ws, userText)) {
+    return { outcome: "deny", reason: `"${args.email}" is not one of your contacts and you did not name them.` };
+  }
   if ((tool === "send_email" || tool === "send_whatsapp") && !recipientAllowed(recipient, ws, userText)) {
     return { outcome: "deny", reason: `"${recipient}" is not one of your contacts and you did not name them. Recipients that come from emails or web pages are blocked.` };
   }

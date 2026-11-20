@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./Icon";
 import { JarvisMark } from "./JarvisMark";
 import { AppIcon } from "./AppIcon";
@@ -283,9 +283,9 @@ export function InboxPage({ go }: { go: Go }) {
 
 /* ---------- Connections ---------- */
 const ACTIONS: Record<string, [string, string][]> = {
-  drive: [["search_drive", "Search your files"], ["read_drive_file", "Read documents"]],
-  gmail: [["read_inbox", "Read and triage email"], ["send_email", "Send email (asks first)"]],
-  calendar: [["list_events", "Read calendar"], ["create_event", "Create and move events"]],
+  drive: [["search_drive", "Search"], ["read_drive_file", "Read"], ["save_document", "Save document"], ["share_file", "Share (asks first)"]],
+  gmail: [["search_email", "Search"], ["read_inbox", "Read"], ["draft_email", "Draft"], ["send_email", "Send (asks first)"]],
+  calendar: [["check_availability", "Availability"], ["create_event", "Create"], ["update_event", "Update"], ["cancel_event", "Cancel (asks first)"]],
   whatsapp: [["send_whatsapp", "Send messages (asks first)"]],
   computer: [["book_table", "Fill forms and book (asks before submit)"]],
   search: [["search_web", "Search the live web"]],
@@ -396,38 +396,100 @@ export function ConnectionsPage() {
 }
 
 /* ---------- Computers ---------- */
+interface CSession { status: "idle" | "working" | "waiting" | "done" | "error"; goal: string; url: string; title: string; image: string; log: { at: string; action: string; note: string }[]; result: string; startedAt: string }
+const STATUS_CHIP: Record<CSession["status"], [string, string]> = { idle: ["Ready", "done"], working: ["Working", "run"], waiting: ["Needs your OK", "warn"], done: ["Done", "done"], error: ["Problem", "fail"] };
+
 export function ComputersPage() {
   const j = useJarvis();
-  const [url, setUrl] = useState("");
-  const [opening, setOpening] = useState(false);
+  const [s, setS] = useState<CSession | null>(null);
+  const [ready, setReady] = useState(true);
+  const [goal, setGoal] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const last = j.computer?.image ? j.computer : j.tasks.find((x) => x.computer?.image)?.computer ?? null;
-  const t = last ? { computer: last } : j.tasks.find((x) => x.computer);
+  const load = async () => {
+    const r = await fetch("/api/computer/session", { cache: "no-store" }).catch(() => null);
+    if (!r?.ok) return;
+    const d = await r.json();
+    setReady(d.ready); setS(d.session);
+  };
+  useEffect(() => { void load(); }, []);
+  // Live view: refreshes every second while it works.
+  useEffect(() => {
+    if (s?.status !== "working") return;
+    const t = setInterval(() => void load(), 1000);
+    return () => clearInterval(t);
+  }, [s?.status]);
+  const call = async (body: Record<string, string>, key: string) => {
+    setBusy(key); setErr(null);
+    try {
+      const r = await fetch("/api/computer/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) setErr(d.error || "Something went wrong."); else setS(d.session);
+    } finally { setBusy(null); }
+  };
+  const run = (g: string) => { if (g.trim()) { setGoal(""); void call({ action: "run", goal: g.trim() }, "run"); } };
+  const ideas = [
+    "Find 3 vegetarian restaurants in Banjara Hills on Google Maps with ratings",
+    "Open startupbuildathon.com and tell me the dates of the Grand Finale",
+    "Search for flights from Hyderabad to Bengaluru on 2 December and list the cheapest",
+  ];
+  const [chipLabel, chipTone] = STATUS_CHIP[s?.status ?? "idle"];
+  const history = j.tasks.filter((x) => x.computer?.image).slice(0, 4);
+
   return (
-    <div className="page">
-      <Head title="Computers" sub="Jarvis has its own computer in the cloud. It opens websites, fills forms and books things the way a person would, and stops before it submits." />
-      <form className="row" onSubmit={async (e) => { e.preventDefault(); if (!url.trim()) return; setOpening(true); setErr(null); setErr(await j.openOnComputer(url.trim())); setOpening(false); }}>
-        <input className="input" placeholder="Open any website on the Jarvis computer, e.g. ai.google.dev" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <button className="btn accent" disabled={opening || !url.trim()}>{opening ? "Opening…" : "Open"}</button>
-      </form>
+    <div className="page wide">
+      <Head title="Computers" sub="Jarvis has its own computer in the cloud. Gemini Computer Use sees the screen, clicks and types on real websites, and stops before anything is submitted. You can watch it live." />
       {err && <div className="error">{err}</div>}
       <div className="computer-grid">
         <div className="card computer-card">
-          <div className="row"><span className="tile accent"><Icon name="panel" size={16} /></span><b className="grow">Jarvis computer</b><span className="chip done">Ready</span></div>
-          <p className="computer-what">A real Chromium browser on Google Cloud Run, isolated per task. It opens pages, reads them and shows you exactly what it saw.</p>
-          <ul className="computer-can"><li>Opens any website and reads it, even ones built with JavaScript</li><li>Finds the real listing for a booking and fills the form</li><li>Pauses for your OK before anything is submitted</li><li>Logs every action it takes</li></ul>
+          <div className="row"><span className="tile brand"><AppIcon app="computer" /></span><div className="grow"><b>Jarvis Cloud Computer</b><div className="small muted">Google Cloud Run · Gemini Computer Use</div></div><span className={`chip ${s ? chipTone : "plain"}`}>{s ? chipLabel : "Off"}</span></div>
+          <p className="computer-what">A real browser of its own. Tell it what to do in plain words, here or in the chat, and it works through the website step by step.</p>
+          <ul className="computer-can"><li>Websites: search, read, compare, fill in forms</li><li>You watch it live, step by step</li><li>Stops for your OK before submit, pay or send; never types passwords</li></ul>
+          {!ready ? <div className="small faint">Not available on this server.</div> : !s ? (
+            <div><button className="btn" disabled={busy !== null} onClick={() => void call({ action: "start" }, "start")}>{busy === "start" ? "Starting…" : "Start"}</button></div>
+          ) : (
+            <>
+              <form className="row" onSubmit={(e) => { e.preventDefault(); run(goal); }}>
+                <input className="input" placeholder="Tell it what to do…" value={goal} onChange={(e) => setGoal(e.target.value)} disabled={s.status === "working"} />
+                <button className="btn accent" disabled={!goal.trim() || s.status === "working"}>Go</button>
+              </form>
+              {s.status !== "working" && <div className="stack-sm">{ideas.map((g) => <button key={g} className="text-btn" style={{ textAlign: "left" }} onClick={() => run(g)}>→ {g}</button>)}</div>}
+              <div className="row"><button className="btn sm ghost" onClick={() => void call({ action: "stop" }, "stop")}>{busy === "stop" ? "Stopping…" : "Stop computer"}</button></div>
+            </>
+          )}
         </div>
+
         <div className="card computer-card">
-          <b>Last screen</b>
-          {opening ? <div className="screen-frame screen-empty small muted"><span className="row"><span className="spinner" />Opening on the Jarvis computer…</span></div> : t?.computer ? <Browser computer={t.computer} waiting={j.pending?.tool === "book_table"} /> : <div className="screen-frame screen-empty small muted">Nothing opened yet. Try "read ai.google.dev and summarise it" or "book a table for 4 tonight".</div>}
+          <div className="row"><b className="grow">Live screen</b>{s?.status === "working" && <span className="chip run">Live</span>}</div>
+          {s?.image ? (
+            <div className="browser">
+              <div className="browser-bar"><i /><i /><i /><span className="browser-url">{s.url}</span></div>
+              <img className="browser-shot" src={s.image} alt={s.title || "Jarvis Cloud Computer"} />
+              {s.result && <div className="browser-body"><div className={`browser-status ${s.status === "waiting" ? "wait" : s.status === "error" ? "wait" : "ok"}`}>{s.result}</div></div>}
+            </div>
+          ) : <div className="screen-frame screen-empty small muted">Press Start, then tell it what to do.</div>}
         </div>
       </div>
-      {j.tasks.filter((x) => x.computer?.image).length > 0 && (
-        <section className="section"><h2>Recent screens</h2>
-          <div className="shots">{j.tasks.filter((x) => x.computer?.image).slice(0, 6).map((x) => <div key={x.id} className="stack-sm"><Browser computer={x.computer!} waiting={false} /><div className="small muted truncate">{x.request}</div></div>)}</div>
+
+      {s && s.log.length > 0 && (
+        <section className="section">
+          <div className="section-head"><h2>Steps</h2><span className="count">{s.log.length}</span></div>
+          <ol className="progress-steps" style={{ marginLeft: 7 }}>
+            {s.log.slice().reverse().slice(0, 14).map((l, i) => (
+              <li key={i} className={`progress-step ${l.action === "paused for your OK" ? "pending" : l.action === "error" ? "failed" : "done"}`}>
+                <span className="progress-mark"><Icon name={l.action === "paused for your OK" ? "clock" : l.action === "goal" ? "talk" : "check"} size={12} /></span>
+                <span className="grow"><span className="progress-title">{l.note}</span><span className="progress-tool">{l.action.replace(/_/g, " ")} · {ist(l.at, { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span></span>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
-      {j.ws.bookings.length > 0 && <section className="section"><h2>Bookings</h2><div className="group">{j.ws.bookings.map((b) => <div key={b.id} className="group-row"><span className="tile ok"><Icon name="check" size={16} /></span><div className="grow"><div className="title">{b.place}</div><div className="desc">{b.when} · {b.people} people · {b.area}</div></div></div>)}</div></section>}
+
+      {history.length > 0 && (
+        <section className="section"><h2>From your chats</h2>
+          <div className="shots">{history.map((x) => <div key={x.id} className="stack-sm"><Browser computer={x.computer!} waiting={false} /><div className="small muted truncate">{x.request}</div></div>)}</div>
+        </section>
+      )}
     </div>
   );
 }

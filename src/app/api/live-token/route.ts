@@ -1,4 +1,4 @@
-import { ai, MODELS } from "@/lib/gemini";
+import { keyAi, MODELS } from "@/lib/gemini";
 import { limited } from "@/lib/limit";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (limited(req, 15)) return Response.json({ error: "Too many voice sessions. Please wait a few minutes." }, { status: 429 });
   try {
     const now = Date.now();
-    const token = await ai().authTokens.create({
+    const token = await keyAi().authTokens.create({
       config: {
         uses: 3,
         expireTime: new Date(now + 20 * 60 * 1000).toISOString(),

@@ -1,7 +1,7 @@
 import { Type, type FunctionDeclaration } from "@google/genai";
 import { readPage, searchWeb } from "./gemini";
 import { computerReady, openPage, type Shot } from "./browser";
-import { calCreate, calList, driveRead, driveSearch, gmailList, gmailRead, gmailSend, type Live } from "./google";
+import { calCancel, calCreate, calFreeBusy, calList, calUpdate, driveRead, driveSaveDoc, driveSearch, driveShare, gmailDraft, gmailList, gmailRead, gmailSend, type Live } from "./google";
 import { e164, sendWhatsapp, whatsappReady } from "./whatsapp";
 import type { Source, Workspace } from "./types";
 
@@ -31,6 +31,32 @@ export const DECLARATIONS: FunctionDeclaration[] = [
     name: "book_table", description: "Book a restaurant table on the cloud computer: it opens the booking page and fills the form, then waits for the user's approval before submitting.",
     parameters: { type: Type.OBJECT, properties: { place: S("Restaurant name"), area: S("Area and city"), when: S("Date and time, human readable, e.g. Sat 22 Nov, 8:00 PM"), people: { type: Type.INTEGER, description: "Number of people" } }, required: ["place", "area", "when", "people"] },
   },
+  { name: "search_email", description: "Search the user's email with Gmail search syntax, e.g. 'from:priya invoice newer_than:7d'.", parameters: { type: Type.OBJECT, properties: { query: S("Gmail search query") }, required: ["query"] } },
+  {
+    name: "draft_email", description: "Save an email as a draft in the user's Gmail without sending it.",
+    parameters: { type: Type.OBJECT, properties: { to: S("Contact name or email"), subject: S("Subject"), body: S("Full body") }, required: ["to", "subject", "body"] },
+  },
+  {
+    name: "check_availability", description: "Check when the user is busy between two times, to find a free slot.",
+    parameters: { type: Type.OBJECT, properties: { start: S("ISO 8601 with +05:30"), end: S("ISO 8601 with +05:30") }, required: ["start", "end"] },
+  },
+  {
+    name: "update_event", description: "Move or rename an existing calendar event (id from list_events).",
+    parameters: { type: Type.OBJECT, properties: { id: S("Event id"), title: S("New title, optional"), start: S("New start, ISO 8601 with +05:30, optional"), end: S("New end, optional") }, required: ["id"] },
+  },
+  { name: "cancel_event", description: "Cancel a calendar event (id from list_events). Needs the user's approval.", parameters: { type: Type.OBJECT, properties: { id: S("Event id"), title: S("Event title, for the approval card") }, required: ["id"] } },
+  {
+    name: "save_document", description: "Save text as a new Google Doc in the user's Drive (notes, summaries, plans).",
+    parameters: { type: Type.OBJECT, properties: { title: S("Document title"), content: S("Full text") }, required: ["title", "content"] },
+  },
+  {
+    name: "share_file", description: "Share a Drive file with someone. Needs the user's approval.",
+    parameters: { type: Type.OBJECT, properties: { id: S("Drive file id"), name: S("File name, for the approval card"), email: S("Person's email"), role: S("reader, commenter or writer") }, required: ["id", "email"] },
+  },
+  {
+    name: "use_computer", description: "Use the Jarvis Cloud Computer: a real browser Jarvis operates step by step (Gemini Computer Use) for multi-step tasks on websites, like finding availability, comparing listings or filling forms. It stops before anything is submitted.",
+    parameters: { type: Type.OBJECT, properties: { goal: S("What to do, specific and complete") }, required: ["goal"] },
+  },
   {
     name: "search_drive", description: "Search the user's Google Drive files by keyword (leave query empty for the most recent files).",
     parameters: { type: Type.OBJECT, properties: { query: S("Keywords, or empty for recent files") }, required: ["query"] },
@@ -47,7 +73,7 @@ export const DECLARATIONS: FunctionDeclaration[] = [
 
 export const LABELS: Record<string, string> = {
   read_inbox: "Read inbox", read_email: "Read email", list_events: "Checked calendar", create_event: "Created event",
-  send_email: "Send email", send_whatsapp: "Send WhatsApp", search_web: "Searched the web (Google Search)", open_website: "Read website", search_drive: "Searched Google Drive", read_drive_file: "Read Drive file",
+  send_email: "Send email", send_whatsapp: "Send WhatsApp", search_web: "Searched the web (Google Search)", open_website: "Read website", search_email: "Searched Gmail", draft_email: "Saved Gmail draft", check_availability: "Checked availability", update_event: "Updated event", cancel_event: "Cancel event", save_document: "Saved to Google Drive", share_file: "Share file", use_computer: "Jarvis Cloud Computer", search_drive: "Searched Google Drive", read_drive_file: "Read Drive file",
   book_table: "Cloud computer: booking", remember: "Saved to memory", recall_memory: "Recalled memory", set_reminder: "Set reminder",
 };
 
@@ -82,6 +108,8 @@ export function preview(tool: string, a: Record<string, unknown>, ws: Workspace)
     const c = findContact(ws, String(a.contact));
     return { summary: `WhatsApp ${c?.name ?? a.contact}`, rows: [{ label: "To", value: c ? `${c.name} (${c.whatsapp ?? "WhatsApp"})` : String(a.contact) }, { label: "Message", value: String(a.text) }] };
   }
+  if (tool === "cancel_event") return { summary: `Cancel ${a.title ?? "event"}`, rows: [{ label: "Event", value: String(a.title ?? a.id) }, { label: "What happens", value: "Removed from your calendar; guests are told." }] };
+  if (tool === "share_file") return { summary: `Share ${a.name ?? "file"}`, rows: [{ label: "File", value: String(a.name ?? a.id) }, { label: "With", value: String(a.email) }, { label: "Access", value: String(a.role ?? "reader") }] };
   if (tool === "book_table") {
     return { summary: `Book ${a.place}`, rows: [{ label: "Restaurant", value: `${a.place}, ${a.area}` }, { label: "When", value: String(a.when) }, { label: "People", value: String(a.people) }, { label: "Name", value: ws.owner }] };
   }
@@ -135,6 +163,38 @@ async function executeLive(tool: string, a: Record<string, unknown>, ws: Workspa
     ws.sent.unshift({ id: uid("s"), channel: "email", to, subject: String(a.subject), text: String(a.body), at: new Date().toISOString() });
     return { detail: `to ${to} · Gmail id ${id}`, result: { sent: true, to, gmail_id: id } };
   }
+  if (tool === "search_email" && live.gmail) {
+    const mails = await gmailList(live.gmail, 10, String(a.query));
+    return { detail: `${mails.length} emails for "${a.query}"`, result: mails.map((m) => ({ id: m.id, from: `${m.from} <${m.fromEmail}>`, subject: m.subject, snippet: m.body, received: ist(m.time) })) };
+  }
+  if (tool === "draft_email" && live.gmail) {
+    const c = findContact(ws, String(a.to));
+    const to = c?.email ?? String(a.to);
+    const id = await gmailDraft(live.gmail, to, String(a.subject), String(a.body));
+    return { detail: `draft to ${to}`, result: { drafted: true, to, draft_id: id, note: "Saved in Gmail Drafts, not sent." } };
+  }
+  if (tool === "check_availability" && live.calendar) {
+    const busy = await calFreeBusy(live.calendar, fixTime(String(a.start)), fixTime(String(a.end)));
+    return { detail: busy.length ? `${busy.length} busy slots` : "free the whole time", result: { busy: busy.map((b) => `${ist(b.start)} to ${ist(b.end)}`) } };
+  }
+  if (tool === "update_event" && live.calendar) {
+    await calUpdate(live.calendar, String(a.id), { title: a.title ? String(a.title) : undefined, start: a.start ? fixTime(String(a.start)) : undefined, end: a.end ? fixTime(String(a.end)) : undefined });
+    ws.calendar = await calList(live.calendar);
+    return { detail: `${a.title ?? "event"}${a.start ? `, ${ist(fixTime(String(a.start)))}` : ""} · Google Calendar`, result: { updated: true } };
+  }
+  if (tool === "cancel_event" && live.calendar) {
+    await calCancel(live.calendar, String(a.id));
+    ws.calendar = ws.calendar.filter((e) => e.id !== a.id && e.id !== `g:${a.id}`);
+    return { detail: `${a.title ?? "event"} cancelled · Google Calendar`, result: { cancelled: true } };
+  }
+  if (tool === "save_document" && live.drive) {
+    const d = await driveSaveDoc(live.drive, String(a.title), String(a.content));
+    return { detail: `${a.title} · Google Docs`, result: { saved: true, link: d.link }, sources: [{ title: String(a.title), uri: d.link }] };
+  }
+  if (tool === "share_file" && live.drive) {
+    await driveShare(live.drive, String(a.id), String(a.email), (["reader", "commenter", "writer"].includes(String(a.role)) ? a.role : "reader") as "reader");
+    return { detail: `${a.name ?? "file"} shared with ${a.email}`, result: { shared: true } };
+  }
   if (tool === "search_drive") {
     if (!live.drive) return { detail: "Drive not connected", result: { error: "Google Drive is not connected. Ask the user to connect it on the Connections page." } };
     const files = await driveSearch(live.drive, String(a.query ?? ""));
@@ -169,7 +229,7 @@ async function executeLive(tool: string, a: Record<string, unknown>, ws: Workspa
 }
 
 export async function execute(tool: string, a: Record<string, unknown>, ws: Workspace, live?: Live): Promise<Out> {
-  if (live || tool === "send_whatsapp" || tool === "search_drive" || tool === "read_drive_file") { const out = await executeLive(tool, a, ws, live ?? { gmail: null, calendar: null, drive: null, email: null }); if (out) return out; }
+  if (live || ["send_whatsapp", "search_drive", "read_drive_file"].includes(tool)) { const out = await executeLive(tool, a, ws, live ?? { gmail: null, calendar: null, drive: null, email: null }); if (out) return out; }
   switch (tool) {
     case "read_inbox": {
       const blocked = ws.inbox.filter((e) => !e.trusted && INJECTION.test(e.body)).map((e) => `Hidden instructions quarantined in "${e.subject}" from ${e.fromEmail}`);
@@ -234,6 +294,28 @@ export async function execute(tool: string, a: Record<string, unknown>, ws: Work
       ws.bookings.unshift({ id: uid("b"), place: String(a.place), area: String(a.area), when: String(a.when), people: Number(a.people), at: new Date().toISOString() });
       return { detail: `${a.place}, ${a.when}`, result: { booked: true, place: a.place, when: a.when, people: a.people } };
     }
+    case "search_email": {
+      const q = String(a.query).toLowerCase().split(/\s+/).filter((w) => w && !w.includes(":"));
+      const hits = ws.inbox.filter((e) => q.every((w) => `${e.from} ${e.subject} ${e.body}`.toLowerCase().includes(w)));
+      return { detail: `${hits.length} emails for "${a.query}"`, result: hits.map((e) => ({ id: e.id, from: e.from, subject: e.subject, snippet: e.body })) };
+    }
+    case "draft_email": return { detail: `draft to ${a.to}`, result: { drafted: true, note: "Saved as a draft, not sent." } };
+    case "check_availability": {
+      const s0 = +new Date(fixTime(String(a.start))), e0 = +new Date(fixTime(String(a.end)));
+      const busy = ws.calendar.filter((e) => +new Date(e.start) < e0 && +new Date(e.end) > s0);
+      return { detail: busy.length ? `${busy.length} busy slots` : "free the whole time", result: { busy: busy.map((b) => `${b.title}: ${ist(b.start)} to ${ist(b.end)}`) } };
+    }
+    case "update_event": {
+      const ev = ws.calendar.find((e) => e.id === a.id);
+      if (!ev) return { detail: "not found", result: { error: "No event with that id" } };
+      if (a.title) ev.title = String(a.title);
+      if (a.start) ev.start = fixTime(String(a.start));
+      if (a.end) ev.end = fixTime(String(a.end));
+      return { detail: `${ev.title}, ${ist(ev.start)}`, result: { updated: true } };
+    }
+    case "cancel_event": ws.calendar = ws.calendar.filter((e) => e.id !== a.id); return { detail: `${a.title ?? "event"} cancelled`, result: { cancelled: true } };
+    case "save_document": ws.docs = [...(ws.docs ?? []), { id: uid("d"), name: String(a.title), summary: String(a.content).slice(0, 160), at: new Date().toISOString(), source: "jarvis" }]; return { detail: String(a.title), result: { saved: true, note: "Saved to your documents." } };
+    case "share_file": return { detail: `shared with ${a.email}`, result: { shared: true } };
     case "remember":
       ws.memory.push(String(a.fact));
       return { detail: String(a.fact), result: { saved: true } };

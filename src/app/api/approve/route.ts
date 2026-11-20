@@ -15,6 +15,7 @@ export async function POST(req: Request) {
     const result = await runAgent({
       live,
       voice: body.voice === true,
+      uid: u.id,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace,
       lang: ["en", "hi", "te"].includes(body.lang) ? body.lang : "en",

@@ -90,8 +90,8 @@ interface GMsg { id: string; threadId: string; snippet?: string; internalDate?: 
 const header = (m: GMsg, n: string) => m.payload?.headers?.find((h) => h.name.toLowerCase() === n.toLowerCase())?.value ?? "";
 const b64 = (s: string) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
 
-export async function gmailList(conn: string, max = 8) {
-  const list = await proxy<{ messages?: { id: string }[] }>(conn, GMAIL, "GET", `/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent("in:inbox")}`);
+export async function gmailList(conn: string, max = 8, q = "in:inbox") {
+  const list = await proxy<{ messages?: { id: string }[] }>(conn, GMAIL, "GET", `/gmail/v1/users/me/messages?maxResults=${max}&q=${encodeURIComponent(q)}`);
   const msgs = await Promise.all((list.messages ?? []).map((m) => proxy<GMsg>(conn, GMAIL, "GET", `/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`)));
   return msgs.map((m) => {
     const from = header(m, "From");
@@ -156,4 +156,44 @@ export async function driveRead(conn: string, id: string): Promise<{ name: strin
   const ct = r.headers.get("content-type") || "";
   const text = /text|json|csv|xml/.test(ct) || exportAs ? (await r.text()) : `(${meta.mimeType} file; open it in Drive to view)`;
   return { name: meta.name, text: text.slice(0, 12000) };
+}
+
+function rawMail(to: string, subject: string, body: string) {
+  const enc = (s: string) => `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`;
+  return Buffer.from([`To: ${to}`, `Subject: ${enc(subject)}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", Buffer.from(body).toString("base64")].join("\r\n")).toString("base64url");
+}
+export async function gmailDraft(conn: string, to: string, subject: string, body: string) {
+  const d = await proxy<{ id: string }>(conn, GMAIL, "POST", "/gmail/v1/users/me/drafts", { message: { raw: rawMail(to, subject, body) } });
+  return d.id;
+}
+export async function calFreeBusy(conn: string, start: string, end: string) {
+  const r = await proxy<{ calendars?: Record<string, { busy?: { start: string; end: string }[] }> }>(conn, CALENDAR, "POST", "/calendar/v3/freeBusy", { timeMin: start, timeMax: end, timeZone: "Asia/Kolkata", items: [{ id: "primary" }] });
+  return r.calendars?.primary?.busy ?? [];
+}
+export async function calUpdate(conn: string, id: string, patch: { title?: string; start?: string; end?: string }) {
+  const body: Record<string, unknown> = {};
+  if (patch.title) body.summary = patch.title;
+  if (patch.start) body.start = { dateTime: patch.start, timeZone: "Asia/Kolkata" };
+  if (patch.end) body.end = { dateTime: patch.end, timeZone: "Asia/Kolkata" };
+  await proxy(conn, CALENDAR, "PATCH", `/calendar/v3/calendars/primary/events/${encodeURIComponent(id.replace(/^g:/, ""))}`, body);
+}
+export async function calCancel(conn: string, id: string) {
+  await proxy(conn, CALENDAR, "DELETE", `/calendar/v3/calendars/primary/events/${encodeURIComponent(id.replace(/^g:/, ""))}`);
+}
+/** Saves text as a Google Doc in the owner's Drive. */
+export async function driveSaveDoc(conn: string, title: string, text: string): Promise<{ id: string; link: string }> {
+  const boundary = "jarvis" + Date.now();
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: title, mimeType: "application/vnd.google-apps.document" })}\r\n--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
+  const r = await fetch(`${host()}/proxy/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${secret()}`, "Connection-Id": conn, "Provider-Config-Key": DRIVE, "nango-proxy-Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`Drive ${r.status}: ${t.slice(0, 160)}`);
+  const j = JSON.parse(t) as { id: string; webViewLink?: string };
+  return { id: j.id, link: j.webViewLink ?? `https://docs.google.com/document/d/${j.id}/edit` };
+}
+export async function driveShare(conn: string, id: string, email: string, role: "reader" | "commenter" | "writer") {
+  await proxy(conn, DRIVE, "POST", `/drive/v3/files/${encodeURIComponent(id)}/permissions?sendNotificationEmail=true`, { type: "user", role, emailAddress: email });
 }

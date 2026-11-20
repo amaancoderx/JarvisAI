@@ -9,7 +9,7 @@ export function computerReady(): boolean {
   try { return existsSync(exe()); } catch { return false; }
 }
 
-async function get(): Promise<Browser> {
+export async function getBrowser(): Promise<Browser> {
   if (!browser) {
     const puppeteer = (await import("puppeteer-core")).default;
     browser = puppeteer.launch({
@@ -29,7 +29,7 @@ export async function openPage(raw: string, timeoutMs = 15000): Promise<Shot> {
   let url = raw.trim();
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
   if (blocked(new URL(url).hostname)) throw new Error("That address is not allowed.");
-  const b = await get();
+  const b = await getBrowser();
   const page = await b.newPage();
   try {
     await page.setViewport({ width: 1280, height: 800 });
