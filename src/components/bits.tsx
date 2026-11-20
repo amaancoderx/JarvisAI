@@ -36,7 +36,7 @@ function inline(text: string, key = 0): React.ReactNode[] {
     last = m.index + t.length;
   }
   if (last < text.length) out.push(text.slice(last));
-  return out.map((x) => (typeof x === "string" ? x.replace(/\([*_#|])/g, "$1") : x));
+  return out.map((x) => (typeof x === "string" ? x.replace(/\\([*_#|])/g, "$1") : x));
 }
 
 /** Jarvis's answers as clean reading text: headings, lists, tables, bold and links. */
