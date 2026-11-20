@@ -397,7 +397,7 @@ export function ConnectionsPage() {
 }
 
 /* ---------- Computers ---------- */
-interface CSession { status: "idle" | "working" | "waiting" | "done" | "error"; goal: string; url: string; title: string; image: string; log: { at: string; action: string; note: string }[]; result: string; startedAt: string }
+interface CSession { status: "idle" | "working" | "waiting" | "done" | "error"; goal: string; url: string; title: string; image: string; log: { at: string; action: string; note: string; label?: string }[]; result: string; startedAt: string }
 const STATUS_CHIP: Record<CSession["status"], [string, string]> = { idle: ["Ready", "done"], working: ["Working", "run"], waiting: ["Needs your OK", "warn"], done: ["Done", "done"], error: ["Problem", "fail"] };
 
 export function ComputersPage() {
@@ -481,7 +481,7 @@ export function ComputersPage() {
             {s.log.slice().reverse().slice(0, 14).map((l, i) => (
               <li key={i} className={`progress-step ${l.action === "paused for your OK" ? "pending" : l.action === "error" ? "failed" : "done"}`}>
                 <span className="progress-mark"><Icon name={l.action === "paused for your OK" ? "clock" : l.action === "goal" ? "talk" : "check"} size={12} /></span>
-                <span className="grow"><span className="progress-title">{l.note}</span><span className="progress-tool">{l.action.replace(/_/g, " ")} · {ist(l.at, { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span></span>
+                <span className="grow"><span className="progress-title">{l.label ?? (l.action === "goal" ? "Your request" : l.action === "paused for your OK" ? "Paused for your OK" : l.action === "done" ? "Finished" : l.action === "error" ? "Stopped" : l.action.replace(/_/g, " "))}</span><span className="progress-found">{l.note}</span><span className="progress-tool">{ist(l.at, { hour: "numeric", minute: "2-digit", second: "2-digit" })}</span></span>
               </li>
             ))}
           </ol>

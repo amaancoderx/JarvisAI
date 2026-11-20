@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { seedWorkspace } from "@/lib/workspace";
 import { tabContext } from "./tab";
+import type { LiveComputer } from "./bits";
 import type { AgentResult, Lang, Pending, Source, Step, Workspace } from "@/lib/types";
 
 export type TaskStatus = "working" | "waiting" | "done" | "blocked" | "failed";
@@ -10,6 +11,8 @@ export interface Task {
   steps: Step[]; reply: string; sources: Source[]; route?: AgentResult["route"];
   totalMs: number; modelCalls: number; rounds: { ms: number; calls: number; kind: "request" | "approval" }[];
   computer?: AgentResult["computer"];
+  /** The cloud computer's screen while this task is using it. Never saved. */
+  live?: LiveComputer;
 }
 export interface Msg { id: string; who: "user" | "jarvis"; text: string; taskId?: string; voice?: boolean; error?: boolean }
 export interface Chat { id: string; title: string; at: string; msgs: Msg[]; history: unknown[] }
@@ -136,7 +139,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loaded) return;
     const { busy: _b, ...keep } = s;
-    const snap = { ...keep, savedAt: new Date().toISOString(), chats: keep.chats.slice(0, 20), tasks: keep.tasks.slice(0, 60) };
+    const snap = { ...keep, savedAt: new Date().toISOString(), chats: keep.chats.slice(0, 20), tasks: keep.tasks.slice(0, 60).map((t) => (t.live ? { ...t, live: undefined } : t)) };
     try { localStorage.setItem(KEY, JSON.stringify(snap)); } catch { /* storage full or blocked */ }
     if (!cloudReady.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -251,6 +254,26 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     return null;
   }, []);
 
+  /** While a request runs, follow the cloud computer so the chat shows its screen live. */
+  const watchComputer = useCallback((taskId: string) => {
+    let on = true;
+    const tick = async () => {
+      if (!on) return;
+      const r = await fetch("/api/computer/session", { cache: "no-store" }).catch(() => null);
+      const d = r?.ok ? await r.json().catch(() => null) : null;
+      const c = d?.session;
+      if (on && c && c.status === "working") {
+        const log = c.log as LiveComputer["log"];
+        const from = log.map((l) => l.action).lastIndexOf("goal") + 1;
+        const live: LiveComputer = { url: c.url, title: c.title, image: c.image, goal: c.goal, log: log.slice(from) };
+        setS((x) => ({ ...x, tasks: x.tasks.map((k) => (k.id === taskId && k.status === "working" ? { ...k, live } : k)) }));
+      }
+      if (on) setTimeout(() => void tick(), 1000);
+    };
+    setTimeout(() => void tick(), 1500);
+    return () => { on = false; setS((x) => ({ ...x, tasks: x.tasks.map((k) => (k.id === taskId && k.live ? { ...k, live: undefined } : k)) })); };
+  }, []);
+
   const send = useCallback(async (text: string, voice = false) => {
     const t = text.trim();
     if (!t) return null;
@@ -263,7 +286,8 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       chats: patchChat(x, chat.id, (c) => ({ ...c, title: c.msgs.length ? c.title : t.slice(0, 48), at: new Date().toISOString(), msgs: [...c.msgs, { id: uid("m"), who: "user", text: t, voice }] })),
     }));
     const tab = await tabContext(t).catch(() => undefined);
-    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google", voice, tab });
+    const unwatch = watchComputer(taskId);
+    const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google", voice, tab }).finally(unwatch);
     if (out.ok) {
       apply(taskId, chat.id, out.r, "request");
       // The memory learns from the conversation in the background, like a brain: lasting facts only.
@@ -272,7 +296,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     else setS((x) => ({ ...x, tasks: x.tasks.map((k) => (k.id === taskId ? { ...k, status: "failed", reply: out.error } : k)), chats: patchChat(x, chat.id, (c) => ({ ...c, msgs: [...c.msgs, { id: uid("m"), who: "jarvis", text: out.error, error: true }] })) }));
     setS((x) => ({ ...x, busy: false }));
     return out.ok ? out.r : null;
-  }, [apply, learn]);
+  }, [apply, learn, watchComputer]);
 
   const decide = useCallback(async (approve: boolean) => {
     const st = ref.current;
@@ -282,12 +306,13 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     const chat = st.chats.find((c) => c.id === (task?.chatId ?? st.chatId)) ?? st.chats[0];
     setS((x) => ({ ...x, busy: true, pending: null, tasks: x.tasks.map((t) => (t.id === p.taskId ? { ...t, status: "working" } : t)) }));
     const { taskId: _t, ...pending } = p;
-    const out = await post("/api/approve", { pending, approve, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google" });
+    const unwatch = watchComputer(p.taskId);
+    const out = await post("/api/approve", { pending, approve, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google" }).finally(unwatch);
     if (out.ok) apply(p.taskId, chat.id, out.r, "approval");
     else setS((x) => ({ ...x, pending: p, tasks: x.tasks.map((t) => (t.id === p.taskId ? { ...t, status: "waiting" } : t)), chats: patchChat(x, chat.id, (c) => ({ ...c, msgs: [...c.msgs, { id: uid("m"), who: "jarvis", text: out.error, error: true }] })) }));
     setS((x) => ({ ...x, busy: false }));
     return out.ok ? out.r : null;
-  }, [apply]);
+  }, [apply, watchComputer]);
 
   /** Swaps workspaces: the current one is kept aside, the other comes back exactly as it was. */
   function switchTo(v: "google" | "sample", email: string | null) {

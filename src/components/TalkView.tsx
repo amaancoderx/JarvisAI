@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
 import { AppIcon } from "./AppIcon";
 import { JarvisMark, type MarkState } from "./JarvisMark";
-import { Browser, Rich, StatusChip, TaskProgress, ago, ist } from "./bits";
+import { Browser, LiveScreen, Rich, StatusChip, TaskProgress, ago, ist } from "./bits";
+import { useTab } from "./tab";
 import { useJarvis } from "./store";
 import { LiveVoice, type VoiceState } from "./voice";
 import type { Lang } from "@/lib/types";
@@ -34,6 +35,7 @@ const greeting = () => {
 
 export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
   const j = useJarvis();
+  const tab = useTab();
   const [text, setText] = useState("");
   const [voice, setVoice] = useState<{ state: VoiceState; note?: string }>({ state: "idle" });
   const [live, setLive] = useState("");
@@ -174,6 +176,13 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
                   )}
                   {last && <TaskProgress task={t} />}
                   <div className="msg jarvis"><Rich text={m.text} /></div>
+                  {last && t.computer?.image && t.status !== "working" && (
+                    <div className="shot-block">
+                      <div className="shot-head"><span className="grow">{t.steps.some((s) => s.tool === "use_computer") ? "The screen when Jarvis stopped" : "What Jarvis opened"}</span><span className={`chip ${t.computer.status.startsWith("Paused") ? "warn" : "done"}`}>{t.computer.status.startsWith("Paused") ? "Waiting for you" : "Done"}</span></div>
+                      <Browser computer={t.computer} waiting={t.computer.status.startsWith("Paused")} />
+                      <a className="text-btn" href="#/computers">Open the Jarvis Cloud Computer</a>
+                    </div>
+                  )}
                   {last && t.sources.length > 0 && <div className="sources">{t.sources.slice(0, 5).map((s) => <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}</a>)}</div>}
                   {last && t.status !== "working" && <div className="msg-meta">{(t.totalMs / 1000).toFixed(1)} s · {t.modelCalls} model calls</div>}
                 </div>
@@ -181,7 +190,7 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
             })}
             {j.busy && (j.chat.msgs.at(-1)?.who === "user" || j.tasks[0]?.status === "working") && (() => {
               const t = j.tasks.find((x) => x.status === "working" && x.chatId === j.chat.id);
-              return t ? <TaskProgress task={t} /> : null;
+              return t ? <><TaskProgress task={t} />{t.live && <LiveScreen live={t.live} />}</> : null;
             })()}
             {live && <div className="msg user live">{live}</div>}
             <div ref={endRef} />
@@ -189,6 +198,13 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
         </div>
 
         <div className="composer">
+          {(tab.screen || tab.folder) && (
+            <div className="tab-share">
+              {tab.screen && <span className="chip run">Screen shared</span>}
+              {tab.folder && <span className="chip plain">Folder: {tab.folder}</span>}
+              <a className="text-btn" href="#/computers">Manage</a>
+            </div>
+          )}
           <form className={`composer-box ${listening ? "listening" : ""}`} onSubmit={(e) => { e.preventDefault(); say(text); }}>
             {listening ? (
               <div className="composer-live">
@@ -245,7 +261,13 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
               )}
             </div>
 
-            {computerTask?.computer && (
+            {(() => { const w = j.tasks.find((x) => x.live); return w?.live ? (
+              <div className="panel-sec">
+                <div className="panel-label">Jarvis computer · live<a href="#/computers" className="text-btn">Open</a></div>
+                <div className="browser"><div className="browser-bar"><i /><i /><i /><span className="browser-url">{w.live.url}</span></div>{w.live.image && <img className="browser-shot" src={w.live.image} alt="Live screen" />}</div>
+              </div>
+            ) : null; })()}
+            {!j.tasks.some((x) => x.live) && computerTask?.computer && (
               <div className="panel-sec">
                 <div className="panel-label">Jarvis computer<a href="#/computers" className="text-btn">Open</a></div>
                 <Browser computer={computerTask.computer} waiting={j.pending?.tool === "book_table"} />

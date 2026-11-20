@@ -9,7 +9,7 @@ import { getBrowser } from "./browser";
 const W = 1280, H = 800;
 const MODEL = () => process.env.COMPUTER_MODEL || "gemini-3.5-flash";
 
-export interface StepLog { at: string; action: string; note: string }
+export interface StepLog { at: string; action: string; note: string; label?: string }
 export interface Session {
   page: Page; status: "idle" | "working" | "waiting" | "done" | "error"; goal: string; url: string; title: string;
   image: string; log: StepLog[]; result: string; startedAt: string; lastUsed: number; stop: boolean;
@@ -21,13 +21,49 @@ function client(): GoogleGenAI {
   return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const isBusy = (e: unknown) => /(429|503|500)|RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|high demand|try again/i.test(String((e as Error)?.message ?? e));
+const unsupported = new Set<string>();
+
+/**
+ * One Computer Use step. Google's shared capacity sometimes answers 429 for a moment; instead of failing the task,
+ * wait briefly and try again, then try a second model that also supports Computer Use.
+ */
+async function think(ai: GoogleGenAI, contents: Content[], s: Session) {
+  const config = { tools: [{ computerUse: { environment: "ENVIRONMENT_BROWSER" as never } }], thinkingConfig: { thinkingLevel: "low" as never } };
+  const fallback = (process.env.COMPUTER_FALLBACK || "gemini-3.6-flash").split(",").map((m) => m.trim()).filter(Boolean);
+  const plan = [MODEL(), MODEL(), ...fallback, MODEL(), ...fallback, MODEL()];
+  const waits = [0, 1200, 2000, 3000, 4500, 6500, 9000];
+  let last: unknown;
+  for (let i = 0; i < plan.length; i++) {
+    const model = plan[i];
+    if (unsupported.has(model) || s.stop) continue;
+    if (waits[i]) await sleep(waits[i]);
+    try {
+      return await ai.models.generateContent({ model, contents, config });
+    } catch (e) {
+      last = e;
+      if (isBusy(e)) { if (i === 1) s.log.push({ at: new Date().toISOString(), action: "retry", label: "Google AI busy, retrying", note: "Waiting a moment and trying again" }); continue; }
+      if (model !== MODEL()) { unsupported.add(model); continue; }
+      throw e;
+    }
+  }
+  throw last ?? new Error("stopped");
+}
+
+const LABEL: Record<string, string> = {
+  open_web_browser: "Open the browser", navigate: "Open a page", search: "Open Google", click_at: "Click", hover_at: "Point at",
+  type_text_at: "Type", key_combination: "Press keys", scroll_document: "Scroll", scroll_at: "Scroll", drag_and_drop: "Drag",
+  go_back: "Go back", go_forward: "Go forward", wait_5_seconds: "Wait for the page",
+};
+const friendly = (e: unknown) => isBusy(e) ? "Google's AI is very busy right now, so the computer paused here. Press Go to carry on." : `The computer hit a problem: ${String((e as Error)?.message ?? e).replace(/\{.*$/s, "").slice(0, 140) || "please try again"}`;
+
 async function snap(s: Session): Promise<string> {
-  const buf = Buffer.from((await s.page.screenshot({ type: "png" })) as Uint8Array);
-  const jpg = Buffer.from((await s.page.screenshot({ type: "jpeg", quality: 55 })) as Uint8Array);
-  s.image = `data:image/jpeg;base64,${jpg.toString("base64")}`;
+  const jpg = Buffer.from((await s.page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array).toString("base64");
+  s.image = `data:image/jpeg;base64,${jpg}`;
   s.url = s.page.url();
   s.title = await s.page.title().catch(() => "");
-  return buf.toString("base64");
+  return jpg;
 }
 
 const blocked = (u: string) => { try { const h = new URL(u).hostname; return /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|metadata)/i.test(h) || h.endsWith(".internal"); } catch { return true; } };
@@ -114,10 +150,10 @@ export async function runGoal(uid: string, goal: string, maxSteps = 20): Promise
   s.status = "working"; s.goal = goal; s.result = ""; s.stop = false;
   s.log.push({ at: new Date().toISOString(), action: "goal", note: goal });
   const ai = client();
-  const history: Content[] = [{ role: "user", parts: [{ text: `${RULES}\n\nGoal: ${goal}` }, { inlineData: { mimeType: "image/png", data: await snap(s) } }] }];
+  const history: Content[] = [{ role: "user", parts: [{ text: `${RULES}\n\nGoal: ${goal}` }, { inlineData: { mimeType: "image/jpeg", data: await snap(s) } }] }];
   try {
     for (let i = 0; i < maxSteps && !s.stop; i++) {
-      const r = await ai.models.generateContent({ model: MODEL(), contents: history, config: { tools: [{ computerUse: { environment: "ENVIRONMENT_BROWSER" as never } }], thinkingConfig: { thinkingLevel: "low" as never } } });
+      const r = await think(ai, history, s);
       const content = r.candidates?.[0]?.content;
       if (!content?.parts?.length) throw new Error("no response");
       history.push({ role: "model", parts: content.parts });
@@ -142,10 +178,10 @@ export async function runGoal(uid: string, goal: string, maxSteps = 20): Promise
           return s;
         }
         const note = await act(s, fc.name ?? "", args).catch((e) => `failed: ${(e as Error).message.slice(0, 80)}`);
-        await new Promise((r) => setTimeout(r, 900));
+        await s.page.waitForNetworkIdle({ idleTime: 300, timeout: 2500 }).catch(() => undefined);
         const png = await snap(s);
-        s.log.push({ at: new Date().toISOString(), action: fc.name ?? "", note: String(args.intent ?? note).slice(0, 160) });
-        responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { url: s.url }, parts: [{ inlineData: { mimeType: "image/png", data: png } }] } } as Part);
+        s.log.push({ at: new Date().toISOString(), action: fc.name ?? "", label: LABEL[fc.name ?? ""] ?? (fc.name ?? "").replace(/_/g, " "), note: String(args.intent ?? note).slice(0, 160) });
+        responses.push({ functionResponse: { id: fc.id, name: fc.name, response: { url: s.url }, parts: [{ inlineData: { mimeType: "image/jpeg", data: png } }] } } as Part);
       }
       history.push({ role: "user", parts: responses });
       // Keep only the latest screenshots so each step stays fast.
@@ -160,12 +196,12 @@ export async function runGoal(uid: string, goal: string, maxSteps = 20): Promise
     if (!s.stop) {
       // Out of steps: still give the best answer from what is on screen now.
       const r = await ai.models.generateContent({ model: MODEL(), contents: [{ role: "user", parts: [{ text: `Goal: ${goal}
-From this screen, answer the goal as well as you can in 2-3 sentences. Say if anything is still missing.` }, { inlineData: { mimeType: "image/png", data: await snap(s) } }] }] }).catch(() => null);
+From this screen, answer the goal as well as you can in 2-3 sentences. Say if anything is still missing.` }, { inlineData: { mimeType: "image/jpeg", data: await snap(s) } }] }] }).catch(() => null);
       s.result = r?.text?.trim() || "Here is where it got to.";
     }
   } catch (e) {
     s.status = "error";
-    s.result = `The computer hit a problem: ${(e as Error).message.slice(0, 140)}`;
+    s.result = friendly(e);
   }
   s.log.push({ at: new Date().toISOString(), action: s.status, note: s.result });
   return s;

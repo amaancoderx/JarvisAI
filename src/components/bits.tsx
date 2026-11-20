@@ -95,7 +95,9 @@ export function StatusChip({ status }: { status: Task["status"] }) {
 const APP: Record<string, string> = {
   read_inbox: "Gmail", read_email: "Gmail", send_email: "Gmail", list_events: "Calendar", create_event: "Calendar",
   send_whatsapp: "WhatsApp", search_web: "Google Search", book_table: "Jarvis computer", remember: "Memory", recall_memory: "Memory",
-  set_reminder: "Reminders", safety: "Trust layer",
+  set_reminder: "Reminders", safety: "Trust layer", use_computer: "Jarvis Cloud Computer", open_website: "Jarvis Cloud Computer",
+  open_in_browser: "Your browser", search_email: "Gmail", draft_email: "Gmail", check_availability: "Calendar", update_event: "Calendar",
+  cancel_event: "Calendar", save_document: "Google Drive", share_file: "Google Drive", search_drive: "Google Drive", read_drive_file: "Google Drive",
 };
 export const appOf = (tool: string) => APP[tool] ?? tool;
 
@@ -152,6 +154,30 @@ export function Browser({ computer, waiting }: { computer: NonNullable<Task["com
         {computer.fields.map((f) => <label key={f.label}>{f.label}<input readOnly value={f.value} /></label>)}
         <div className={`browser-status ${waiting ? "wait" : "ok"}`}>{computer.status}</div>
       </div>
+    </div>
+  );
+}
+
+export interface LiveComputer { url: string; title: string; image: string; goal: string; log: { at: string; label?: string; action: string; note: string }[] }
+
+/** The Jarvis Cloud Computer, live inside the chat while it works. */
+export function LiveScreen({ live }: { live: LiveComputer }) {
+  const acts = live.log.filter((l) => l.label);
+  return (
+    <div className="live-screen">
+      <div className="live-head"><span className="live-dot" aria-hidden /><b>Jarvis Cloud Computer</b><span className="small muted grow truncate">{live.goal}</span><span className="chip run">Live</span></div>
+      {live.image && (
+        <div className="browser">
+          <div className="browser-bar"><i /><i /><i /><span className="browser-url">{live.url}</span></div>
+          <img className="browser-shot" src={live.image} alt={live.title || "Jarvis Cloud Computer, live"} />
+        </div>
+      )}
+      <ol className="progress-steps">
+        {acts.slice(-5).map((l, i) => (
+          <li key={l.at + i} className="progress-step done"><span className="progress-mark"><Icon name="check" size={12} /></span><span className="grow"><span className="progress-title">{l.label}</span><span className="progress-found">{l.note}</span></span></li>
+        ))}
+        <li className="progress-step running"><span className="progress-mark"><span className="spinner" /></span><span className="grow"><span className="progress-title muted">{acts.length ? "Looking at the screen for the next step" : "Opening its browser"}</span></span></li>
+      </ol>
     </div>
   );
 }

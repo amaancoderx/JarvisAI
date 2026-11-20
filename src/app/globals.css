@@ -666,3 +666,14 @@ button.side-link { width: 100%; text-align: left; }
 .rich li.sub { margin-left: 18px; list-style-type: circle; }
 .browser-shot { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--border); }
 .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+
+/* Cloud computer, live in the chat */
+.live-screen { align-self: flex-start; width: min(100%, 720px); display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg); animation: rise 0.2s ease-out; }
+.live-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 14px; }
+.live-head .grow { min-width: 0; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: none; animation: livepulse 1.4s infinite; }
+@keyframes livepulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+.live-screen .progress-steps { margin-top: 0; }
+.shot-block { align-self: flex-start; width: min(100%, 720px); display: grid; gap: 8px; }
+.shot-head { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted); }
+.tab-share { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 auto 8px; max-width: 760px; width: 100%; font-size: 12.5px; }

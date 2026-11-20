@@ -213,9 +213,18 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
           responses.push({ functionResponse: { id: fc.id, name: tool, response: { error: "The Jarvis Cloud Computer is not available." } } });
           continue;
         }
-        const s = await runGoal(input.uid, String(args.goal), 12);
-        computer = { url: s.url, title: s.title, image: s.image, fields: [], status: s.status === "waiting" ? `Paused for your OK: ${s.result}` : s.status === "done" ? "Finished on the Jarvis Cloud Computer" : s.result };
-        steps.push({ tool, label, status: s.status === "error" ? "error" : "done", detail: `${s.log.filter((l) => l.action !== "goal").length} steps · ${s.result.slice(0, 140)}`, tier });
+        let s;
+        try { s = await runGoal(input.uid, String(args.goal), 14); } catch (e) {
+          steps.push({ tool, label, status: "error", detail: (e as Error).message, tier });
+          responses.push({ functionResponse: { id: fc.id, name: tool, response: { error: (e as Error).message } } });
+          continue;
+        }
+        const run = s.log.slice(s.log.map((l) => l.action).lastIndexOf("goal") + 1);
+        const acts = run.filter((l) => l.label);
+        computer = { url: s.url, title: s.title, image: s.image, fields: [], status: s.status === "waiting" ? `Paused for your OK: ${s.result}` : s.status === "done" ? `Done on the Jarvis Cloud Computer in ${acts.length} actions` : s.result };
+        steps.push({ tool, label: `Jarvis Cloud Computer: ${String(args.goal).slice(0, 90)}`, status: "done", detail: "Started its own browser on Google Cloud", tier });
+        for (const l of acts.slice(-12)) steps.push({ tool, label: l.label!, status: "done", detail: l.note, tier });
+        steps.push({ tool, label: s.status === "waiting" ? "Paused before anything is submitted" : s.status === "error" ? "Stopped" : "Finished", status: s.status === "error" ? "error" : s.status === "waiting" ? "waiting" : "done", detail: s.result.slice(0, 220), tier });
         responses.push({ functionResponse: { id: fc.id, name: tool, response: { status: s.status, result: s.result, final_url: s.url, steps: s.log.slice(-12).map((l) => `${l.action}: ${l.note}`) } } });
         continue;
       }
