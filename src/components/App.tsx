@@ -69,7 +69,11 @@ export default function App() {
   }, []);
 
   const call = useCallback(async (url: string, body: unknown): Promise<AgentResult | null> => {
-    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const once = () => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    let res = await once().catch(() => null);
+    // Gemini can be briefly overloaded; one quiet retry hides most of it.
+    if (!res || res.status >= 500) { await new Promise((r) => setTimeout(r, 1200)); res = await once().catch(() => null); }
+    if (!res) { setMsgs((m) => [...m, { id: id(), role: "jarvis", text: "Network problem. Please try again.", error: true }]); return null; }
     const j = await res.json().catch(() => ({ error: "Network error" }));
     if (!res.ok) { setMsgs((m) => [...m, { id: id(), role: "jarvis", text: j.error || "Something went wrong.", error: true }]); return null; }
     return j as AgentResult;

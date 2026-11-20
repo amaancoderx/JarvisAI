@@ -6,7 +6,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Models tried in order when the first choice is busy, so the demo link never just fails. */
 function chain(primary: string): string[] {
-  const extra = (process.env.FALLBACK_MODELS || "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-2.5-flash").split(",").map((s) => s.trim()).filter(Boolean);
+  const extra = (process.env.FALLBACK_MODELS || "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",").map((s) => s.trim()).filter(Boolean);
   return [...new Set([primary, ...extra])];
 }
 
