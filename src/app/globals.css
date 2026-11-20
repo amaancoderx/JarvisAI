@@ -664,3 +664,5 @@ button.side-link { width: 100%; text-align: left; }
 .rich em { font-style: italic; }
 .msg.jarvis .rich > p:first-child strong { font-weight: 650; }
 .rich li.sub { margin-left: 18px; list-style-type: circle; }
+.browser-shot { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--border); }
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }

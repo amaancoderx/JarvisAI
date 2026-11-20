@@ -405,14 +405,19 @@ export function ComputersPage() {
       <div className="computer-grid">
         <div className="card computer-card">
           <div className="row"><span className="tile accent"><Icon name="panel" size={16} /></span><b className="grow">Jarvis computer</b><span className="chip done">Ready</span></div>
-          <p className="computer-what">An isolated browser that runs one task at a time.</p>
-          <ul className="computer-can"><li>Finds the place with Google Search</li><li>Fills the booking form for you</li><li>Pauses for your OK before submit</li><li>Logs every action it takes</li></ul>
+          <p className="computer-what">A real Chromium browser on Google Cloud Run, isolated per task. It opens pages, reads them and shows you exactly what it saw.</p>
+          <ul className="computer-can"><li>Opens any website and reads it, even ones built with JavaScript</li><li>Finds the real listing for a booking and fills the form</li><li>Pauses for your OK before anything is submitted</li><li>Logs every action it takes</li></ul>
         </div>
         <div className="card computer-card">
           <b>Last screen</b>
-          {t?.computer ? <Browser computer={t.computer} waiting={j.pending?.tool === "book_table"} /> : <div className="screen-frame screen-empty small muted">No booking yet. Try "book a table for 4 tonight".</div>}
+          {t?.computer ? <Browser computer={t.computer} waiting={j.pending?.tool === "book_table"} /> : <div className="screen-frame screen-empty small muted">Nothing opened yet. Try "read ai.google.dev and summarise it" or "book a table for 4 tonight".</div>}
         </div>
       </div>
+      {j.tasks.filter((x) => x.computer?.image).length > 0 && (
+        <section className="section"><h2>Recent screens</h2>
+          <div className="shots">{j.tasks.filter((x) => x.computer?.image).slice(0, 6).map((x) => <div key={x.id} className="stack-sm"><Browser computer={x.computer!} waiting={false} /><div className="small muted truncate">{x.request}</div></div>)}</div>
+        </section>
+      )}
       {j.ws.bookings.length > 0 && <section className="section"><h2>Bookings</h2><div className="group">{j.ws.bookings.map((b) => <div key={b.id} className="group-row"><span className="tile ok"><Icon name="check" size={16} /></span><div className="grow"><div className="title">{b.place}</div><div className="desc">{b.when} · {b.people} people · {b.area}</div></div></div>)}</div></section>}
     </div>
   );

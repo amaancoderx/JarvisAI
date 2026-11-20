@@ -117,13 +117,27 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       }
     } catch { /* start fresh */ }
     setLoaded(true);
+    // The cloud copy (Firestore) wins when it is newer, so memory follows the owner across reloads and devices.
+    fetch("/api/state", { cache: "no-store" }).then((r) => r.json()).then((j: { state: (State & { savedAt?: string }) | null }) => {
+      if (!j.state?.ws) return;
+      let localAt = "";
+      try { localAt = JSON.parse(localStorage.getItem(KEY) || "{}").savedAt || ""; } catch { /* none */ }
+      if ((j.state.savedAt || "") > localAt) setS({ ...fresh(), ...j.state, busy: false, pending: null });
+    }).catch(() => undefined).finally(() => { cloudReady.current = true; });
   }, []);
+  const cloudReady = useRef(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!loaded) return;
-    try {
-      const { busy: _b, ...keep } = s;
-      localStorage.setItem(KEY, JSON.stringify({ ...keep, chats: keep.chats.slice(0, 20), tasks: keep.tasks.slice(0, 60) }));
-    } catch { /* storage full or blocked */ }
+    const { busy: _b, ...keep } = s;
+    const snap = { ...keep, savedAt: new Date().toISOString(), chats: keep.chats.slice(0, 20), tasks: keep.tasks.slice(0, 60) };
+    try { localStorage.setItem(KEY, JSON.stringify(snap)); } catch { /* storage full or blocked */ }
+    if (!cloudReady.current) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const slim = { ...snap, chats: snap.chats.slice(0, 10).map((c) => ({ ...c, history: (c.history as unknown[]).slice(-12) })), tasks: snap.tasks.slice(0, 25).map((t) => (t.computer?.image ? { ...t, computer: { ...t.computer, image: undefined } } : t)), computer: snap.computer ? { ...snap.computer, image: undefined } : null, stash: snap.stash };
+      void fetch("/api/state", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(slim) }).catch(() => undefined);
+    }, 1500);
   }, [s, loaded]);
 
   const patchChat = (st: State, chatId: string, f: (c: Chat) => Chat): Chat[] => st.chats.map((c) => (c.id === chatId ? f(c) : c));

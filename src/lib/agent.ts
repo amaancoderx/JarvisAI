@@ -1,6 +1,7 @@
 import type { Content, Part } from "@google/genai";
 import { MODELS, generate, route } from "./gemini";
 import { DECLARATIONS, LABELS, computerView, execute, preview } from "./skills";
+import { computerReady, openPage } from "./browser";
 import { TIERS, decide, sign, verify } from "./trust";
 import type { Live } from "./google";
 import type { AgentResult, AuditEntry, Lang, Pending, Source, Step, Workspace } from "./types";
@@ -172,13 +173,22 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
         pending = { id, tool, args, summary: pv.summary, preview: pv.rows, sig: sign(id, tool, args), callId: fc.id, stash: [] };
         audit(ws, tool, "asked", pv.summary);
         steps.push({ tool, label, status: "waiting", detail: "Waiting for your OK", tier });
-        if (tool === "book_table") computer = computerView(args, ws, "Form filled. Paused before submit.");
+        if (tool === "book_table") {
+          computer = computerView(args, ws, "Form filled. Paused before submit.");
+          if (computerReady()) {
+            try {
+              const shot = await openPage(`https://www.google.com/maps/search/${encodeURIComponent(`${args.place} ${args.area}`)}`, 12000);
+              computer = { ...computer, url: shot.url, title: shot.title, image: shot.image, status: "Real listing opened on the Jarvis computer. Form filled, paused before submit." };
+            } catch { /* keep the form view */ }
+          }
+        }
         continue;
       }
       try {
         const out = await execute(tool, args, ws, input.live);
         if (tool === "search_web") modelCalls++;
         if (out.sources) sources.push(...out.sources);
+        if (out.shot) computer = { url: out.shot.url, title: out.shot.title, image: out.shot.image, fields: [], status: "Opened and read on the Jarvis computer" };
         for (const b of out.blocked ?? []) {
           audit(ws, "prompt_injection", "blocked", b);
           steps.push({ tool: "safety", label: "Blocked prompt injection", status: "blocked", detail: b, tier: "external" });

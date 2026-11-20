@@ -53,6 +53,6 @@ export interface AgentResult {
   route: { kind: "chat" | "task"; skill: string; by: string; ms: number };
   history: unknown[];
   workspace: Workspace;
-  computer?: { url: string; fields: { label: string; value: string }[]; status: string } | null;
+  computer?: { url: string; fields: { label: string; value: string }[]; status: string; image?: string; title?: string } | null;
   timings: { totalMs: number; modelCalls: number };
 }

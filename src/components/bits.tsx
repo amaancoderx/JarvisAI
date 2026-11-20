@@ -146,8 +146,9 @@ export function Browser({ computer, waiting }: { computer: NonNullable<Task["com
   return (
     <div className="browser">
       <div className="browser-bar"><i /><i /><i /><span className="browser-url">{computer.url}</span></div>
+      {computer.image && <img className="browser-shot" src={computer.image} alt={computer.title || "Jarvis computer screen"} />}
       <div className="browser-body">
-        <b>Reserve a table</b>
+        {computer.fields.length > 0 && <b>Reserve a table</b>}
         {computer.fields.map((f) => <label key={f.label}>{f.label}<input readOnly value={f.value} /></label>)}
         <div className={`browser-status ${waiting ? "wait" : "ok"}`}>{computer.status}</div>
       </div>
