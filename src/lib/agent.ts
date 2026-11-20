@@ -2,16 +2,19 @@ import type { Content, Part } from "@google/genai";
 import { MODELS, generate, route } from "./gemini";
 import { DECLARATIONS, LABELS, computerView, execute, preview } from "./skills";
 import { TIERS, decide, sign, verify } from "./trust";
+import type { Live } from "./google";
 import type { AgentResult, AuditEntry, Lang, Pending, Source, Step, Workspace } from "./types";
 
 const MAX_TURNS = 8;
 const LANG_NAME: Record<Lang, string> = { en: "English", hi: "Hindi", te: "Telugu" };
 
-function system(ws: Workspace, lang: Lang) {
+function system(ws: Workspace, lang: Lang, live?: Live) {
+  const input_live_note = live?.gmail || live?.calendar ? `LIVE ACCOUNT: ${live.gmail ? `real Gmail (${live.email ?? "connected"})` : ""}${live.gmail && live.calendar ? " and " : ""}${live.calendar ? "real Google Calendar" : ""} are connected. Actions there are real.
+` : "";
   const now = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "full", timeStyle: "short" });
   const p = ws.profile;
   return `You are Jarvis, a voice-first personal agent for ${ws.owner}, who lives in ${p?.city || "Hyderabad"}, India. Now: ${now} (India time, +05:30).
-About ${ws.owner}: speaks ${p?.languages || "English, Hindi, Telugu"}. ${p?.notes || ""}
+${input_live_note}About ${ws.owner}: speaks ${p?.languages || "English, Hindi, Telugu"}. ${p?.notes || ""}
 
 How you work:
 - Get things done with the tools, step by step. Do not just explain how.
@@ -47,6 +50,7 @@ interface RunInput {
   workspace: Workspace;
   lang: Lang;
   decision?: { pending: Pending; approve: boolean };
+  live?: Live;
 }
 
 export async function runAgent(input: RunInput): Promise<AgentResult> {
@@ -80,7 +84,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
       steps.push({ tool: pending.tool, label, status: "blocked", detail: "All actions are paused", tier: "external" });
       response = { status: "blocked", reason: "all actions are paused" };
     } else {
-      const r = await execute(pending.tool, pending.args, ws);
+      const r = await execute(pending.tool, pending.args, ws, input.live);
       ws.executed.push(pending.id);
       audit(ws, pending.tool, "approved", `${pending.summary}: ${r.detail}`);
       steps.push({ tool: pending.tool, label, status: "done", detail: r.detail, tier: "external" });
@@ -108,7 +112,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
     const { res: r, model: used } = await generate(model, {
       contents: history,
       config: {
-        systemInstruction: system(ws, input.lang),
+        systemInstruction: system(ws, input.lang, input.live),
         temperature: 0.3,
         ...(useTools ? { tools: [{ functionDeclarations: DECLARATIONS }] } : {}),
       },
@@ -136,7 +140,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
         responses.push({ functionResponse: { id: fc.id, name: tool, response: { status: "not run", reason: "Waiting for the previous approval. Call it again afterwards." } } });
         continue;
       }
-      const d = decide(tool, args, ws, userText);
+      const d = decide(tool, args, ws, userText, Boolean(input.live?.gmail));
       if (d.outcome === "deny") {
         audit(ws, tool, "blocked", d.reason);
         steps.push({ tool, label, status: "blocked", detail: d.reason, tier });
@@ -153,7 +157,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
         continue;
       }
       try {
-        const out = await execute(tool, args, ws);
+        const out = await execute(tool, args, ws, input.live);
         if (tool === "search_web") modelCalls++;
         if (out.sources) sources.push(...out.sources);
         for (const b of out.blocked ?? []) {

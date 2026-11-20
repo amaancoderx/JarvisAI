@@ -1,5 +1,6 @@
 import { runAgent } from "@/lib/agent";
 import { limited } from "@/lib/limit";
+import { liveFor, userId } from "@/lib/google";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -9,7 +10,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     if (!body.pending || !body.workspace) return Response.json({ error: "Nothing to approve." }, { status: 400 });
+    const u = userId(req);
+    const live = u.fresh ? undefined : await liveFor(u.id).catch(() => undefined);
     const result = await runAgent({
+      live,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace,
       lang: ["en", "hi", "te"].includes(body.lang) ? body.lang : "en",

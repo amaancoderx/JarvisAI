@@ -33,7 +33,12 @@ function fresh(): State {
   return { ws: seedWorkspace(), chats: [{ id, title: "New chat", at: new Date().toISOString(), msgs: [], history: [] }], chatId: id, tasks: [], pending: null, computer: null, lang: "en", busy: false, routines: ROUTINES };
 }
 
+export interface LiveState { available: boolean; gmail: boolean; calendar: boolean; email: string | null }
+
 interface Api extends State {
+  live: LiveState;
+  connect: (app: "gmail" | "calendar") => Promise<void>;
+  disconnect: (app: "gmail" | "calendar") => Promise<void>;
   chat: Chat;
   send: (text: string, voice?: boolean) => Promise<AgentResult | null>;
   decide: (approve: boolean) => Promise<AgentResult | null>;
@@ -66,6 +71,15 @@ async function post(url: string, body: unknown): Promise<{ ok: true; r: AgentRes
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<State>(fresh);
   const [loaded, setLoaded] = useState(false);
+  const [live, setLive] = useState<LiveState>({ available: false, gmail: false, calendar: false, email: null });
+  const refreshLive = useCallback(async (fresh = false) => {
+    try {
+      const r = await fetch(`/api/connect/status${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
+      if (r.ok) { const j = (await r.json()) as LiveState; setLive(j); return j; }
+    } catch { /* offline */ }
+    return null;
+  }, []);
+  useEffect(() => { void refreshLive(); }, [refreshLive]);
   const ref = useRef(s);
   ref.current = s;
 
@@ -142,8 +156,31 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     return out.ok ? out.r : null;
   }, [apply]);
 
+  const connect = useCallback(async (app: "gmail" | "calendar") => {
+    const r = await fetch("/api/connect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) { window.alert(j.error || "Could not start Google sign-in."); return; }
+    const w = window.open(j.url, "jarvis-google", "width=520,height=680");
+    for (let i = 0; i < 90; i++) {
+      await new Promise((res) => setTimeout(res, 2000));
+      const st = await refreshLive(true);
+      if (st && (app === "gmail" ? st.gmail : st.calendar)) {
+        // Real data replaces the sample data for that app.
+        setS((x) => ({ ...x, ws: app === "gmail" ? { ...x.ws, inbox: [], sent: [] } : { ...x.ws, calendar: [] } }));
+        try { w?.close(); } catch { /* closed */ }
+        return;
+      }
+      if (w && w.closed && i > 3) { await refreshLive(true); return; }
+    }
+  }, [refreshLive]);
+  const disconnect = useCallback(async (app: "gmail" | "calendar") => {
+    await fetch("/api/connect/disconnect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app }) });
+    await refreshLive(true);
+    setS((x) => { const seed = fresh().ws; return { ...x, ws: app === "gmail" ? { ...x.ws, inbox: seed.inbox } : { ...x.ws, calendar: seed.calendar } }; });
+  }, [refreshLive]);
+
   const api = useMemo<Api>(() => ({
-    ...s,
+    ...s, live, connect, disconnect,
     chat: s.chats.find((c) => c.id === s.chatId) ?? s.chats[0],
     send, decide,
     newChat: () => setS((x) => {
@@ -162,7 +199,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     updateWs: (f) => setS((x) => ({ ...x, ws: f(x.ws) })),
     setRoutines: (routines) => setS((x) => ({ ...x, routines })),
     reset: () => setS(fresh()),
-  }), [s, send, decide]);
+  }), [s, send, decide, live, connect, disconnect]);
 
   if (!loaded) return null;
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

@@ -62,7 +62,7 @@ function recipientAllowed(recipient: string, ws: Workspace, userText: string): b
 }
 
 /** Deterministic permission check. Code decides, not the model. */
-export function decide(tool: string, args: Record<string, unknown>, ws: Workspace, userText: string): Decision {
+export function decide(tool: string, args: Record<string, unknown>, ws: Workspace, userText: string, live = false): Decision {
   const tier = TIERS[tool];
   if (!tier) return { outcome: "deny", reason: "unknown action" };
   if (ws.disabled?.includes(tool)) return { outcome: "deny", reason: "you switched this action off in Connections" };
@@ -73,6 +73,11 @@ export function decide(tool: string, args: Record<string, unknown>, ws: Workspac
   const recipient = String(args.to ?? args.contact ?? "");
   if ((tool === "send_email" || tool === "send_whatsapp") && !recipientAllowed(recipient, ws, userText)) {
     return { outcome: "deny", reason: `"${recipient}" is not one of your contacts and you did not name them. Recipients that come from emails or web pages are blocked.` };
+  }
+  if (live && tool === "send_email") {
+    const c = ws.contacts.find((x) => [x.name, x.email].some((v) => v && norm(v) === norm(recipient)));
+    const addr = c?.email ?? recipient;
+    if (!/@/.test(addr) || /@example\.com$/i.test(addr)) return { outcome: "deny", reason: `"${recipient}" has no real email address. Add them on the Memory page or say their email.` };
   }
   return { outcome: "ask" };
 }

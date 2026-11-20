@@ -141,6 +141,7 @@ export function RoutinesPage({ go }: { go: Go }) {
 export function MemoryPage() {
   const j = useJarvis();
   const [fact, setFact] = useState("");
+  const [p, setP] = useState({ name: "", email: "" });
   return (
     <div className="page">
       <Head title="Memory" sub="What Jarvis knows about you and your people. It uses this to pick the right place, tone and language. You can edit it any time." />
@@ -162,6 +163,11 @@ export function MemoryPage() {
         <div className="group">
           {j.ws.contacts.map((c) => <div key={c.id} className="group-row"><span className="avatar">{c.name.slice(0, 1)}</span><div className="grow"><div className="title">{c.name}</div><div className="desc">{c.relation}{c.whatsapp ? ` · ${c.whatsapp}` : ""}{c.email ? ` · ${c.email}` : ""}</div></div></div>)}
         </div>
+        <form className="row wrap" onSubmit={(e) => { e.preventDefault(); if (!p.name.trim()) return; j.updateWs((w) => ({ ...w, contacts: [...w.contacts, { id: `c_${Date.now()}`, name: p.name.trim(), relation: "added by you", ...(p.email.trim() ? { email: p.email.trim() } : {}) }] })); setP({ name: "", email: "" }); }}>
+          <input className="input" style={{ flex: "1 1 140px" }} placeholder="Name" value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} />
+          <input className="input" style={{ flex: "1 1 200px" }} placeholder="Email" value={p.email} onChange={(e) => setP({ ...p, email: e.target.value })} />
+          <button className="btn" disabled={!p.name.trim()}>Add person</button>
+        </form>
         <p className="small muted">Only these people, or someone you name yourself, can receive a message. Recipients found inside emails or web pages are blocked in code.</p>
       </section>
     </div>
@@ -210,10 +216,20 @@ export function ConnectionsPage() {
   return (
     <div className="page">
       <Head title="Connections" sub="The apps Jarvis works in. Switch any action off and it is blocked in code, whatever the model plans." />
+      <div className="card stack-sm" style={{ borderColor: "var(--accent)" }}>
+        <div className="row"><span className="tile accent"><Icon name="user" size={16} /></span><b className="grow">Your Google account</b>{j.live.gmail || j.live.calendar ? <span className="chip done">Live{j.live.email ? ` · ${j.live.email}` : ""}</span> : <span className="chip plain">Not connected</span>}</div>
+        <div className="small muted">Connect your real Gmail and Google Calendar with Google sign-in. OAuth tokens stay server-side with our OAuth provider, never in this browser, and every send still waits for your OK.</div>
+        {!j.live.available ? <div className="small faint">Google connect is not configured on this server.</div> : (
+          <div className="row wrap">
+            {j.live.gmail ? <button className="btn sm ghost" onClick={() => void j.disconnect("gmail")}>Disconnect Gmail</button> : <button className="btn sm accent" onClick={() => void j.connect("gmail")}><Icon name="send" size={14} />Connect Gmail</button>}
+            {j.live.calendar ? <button className="btn sm ghost" onClick={() => void j.disconnect("calendar")}>Disconnect Calendar</button> : <button className="btn sm accent" onClick={() => void j.connect("calendar")}><Icon name="clock" size={14} />Connect Google Calendar</button>}
+          </div>
+        )}
+      </div>
       <div className="grid2">
         {APPS.map((a) => (
           <div key={a.name} className="card stack-sm">
-            <div className="row"><span className="tile brand"><Icon name={a.icon} size={16} /></span><b className="grow">{a.name}</b><span className="chip done">Demo connected</span></div>
+            <div className="row"><span className="tile brand"><Icon name={a.icon} size={16} /></span><b className="grow">{a.name}</b>{(() => { const on = (a.name === "Gmail" && j.live.gmail) || (a.name === "Google Calendar" && j.live.calendar) || a.name === "Google Search"; return <span className={`chip ${on ? "done" : "plain"}`}>{on ? "Live" : "Demo"}</span>; })()}</div>
             <div className="small muted">{a.what}</div>
             {a.actions.map(([tool, label]) => (
               <label key={tool} className="row between small" style={{ cursor: "pointer" }}><span>{label}</span><input type="checkbox" className="switch" checked={!off.has(tool)} onChange={() => toggle(tool)} /></label>
@@ -221,7 +237,7 @@ export function ConnectionsPage() {
           </div>
         ))}
       </div>
-      <p className="small muted">This demo uses a sample workspace so anyone can try sends and bookings safely. The production Jarvis connects real Gmail, Calendar and WhatsApp accounts with the same rules.</p>
+      <p className="small muted">Without a connected account, Jarvis uses a sample workspace so anyone can try sends and bookings safely. Google Search and the Gemini models are always live.</p>
     </div>
   );
 }

@@ -79,7 +79,9 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
           <span className="name">Jarvis</span>
           <span className="small muted">{status}</span>
           <span className="grow" />
-          <span className="chip demo" title="Sample inbox, calendar and contacts. Real Gemini, real Google Search; sends and bookings stay in the sandbox.">Demo workspace</span>
+          {j.live.gmail || j.live.calendar
+            ? <a href="#/connections" className="chip done" title="Your real Google account is connected">Live{j.live.email ? ` · ${j.live.email}` : ""}</a>
+            : <a href="#/connections" className="chip demo" title="Sample inbox, calendar and contacts. Real Gemini and Google Search. Connect Google to use your own Gmail and Calendar.">Demo workspace · Connect Google</a>}
           {j.ws.paused && <span className="chip warn">Actions paused</span>}
           <div className="seg lang-seg" role="radiogroup" aria-label="Language">
             {([["en", "EN"], ["hi", "हिं"], ["te", "తె"]] as [Lang, string][]).map(([k, l]) => (

@@ -1,5 +1,6 @@
 import { runAgent } from "@/lib/agent";
 import { limited } from "@/lib/limit";
+import { liveFor, userId } from "@/lib/google";
 import { seedWorkspace } from "@/lib/workspace";
 
 export const runtime = "nodejs";
@@ -11,7 +12,10 @@ export async function POST(req: Request) {
     const body = await req.json();
     const text = String(body.text ?? "").slice(0, 2000).trim();
     if (!text) return Response.json({ error: "Say or type something first." }, { status: 400 });
+    const u = userId(req);
+    const live = u.fresh ? undefined : await liveFor(u.id).catch(() => undefined);
     const result = await runAgent({
+      live,
       text,
       history: Array.isArray(body.history) ? body.history : [],
       workspace: body.workspace ?? seedWorkspace(),
