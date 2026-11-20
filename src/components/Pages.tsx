@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Icon, type IconName } from "./Icon";
 import { JarvisMark } from "./JarvisMark";
 import { AppIcon } from "./AppIcon";
@@ -139,34 +139,112 @@ export function RoutinesPage({ go }: { go: Go }) {
 }
 
 /* ---------- Memory ---------- */
+const toB64 = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] ?? ""); r.onerror = rej; r.readAsDataURL(f); });
+
 export function MemoryPage() {
   const j = useJarvis();
   const [fact, setFact] = useState("");
-  const [p, setP] = useState({ name: "", email: "" });
+  const [note, setNote] = useState("");
+  const [p, setP] = useState({ name: "", email: "", phone: "" });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const pick = useRef<HTMLInputElement>(null);
+  const google = j.space === "google";
+  const run = async (key: string, f: () => Promise<{ facts: number; people: number; error?: string }>) => {
+    setBusy(key); setMsg(null);
+    try { const r = await f(); setMsg(r.error ? r.error : `Learned ${r.facts} new fact${r.facts === 1 ? "" : "s"}${r.people ? ` and ${r.people} ${r.people === 1 ? "person" : "people"}` : ""}.`); }
+    finally { setBusy(null); }
+  };
+  const upload = async (files: File[]) => {
+    for (const f of files.slice(0, 5)) {
+      if (f.size > 5 * 1024 * 1024) { setMsg(`${f.name} is larger than 5 MB.`); continue; }
+      await run(`file:${f.name}`, async () => j.learn("file", { name: f.name, mime: f.type || "text/plain", data: await toB64(f) }));
+    }
+  };
+  const sources: { id: "gmail" | "calendar" | "drive"; title: string; on: boolean }[] = [
+    { id: "gmail", title: "Gmail", on: j.live.gmail },
+    { id: "calendar", title: "Calendar", on: j.live.calendar },
+    { id: "drive", title: "Drive", on: j.live.drive },
+  ];
   return (
     <div className="page">
-      <Head title="Memory" sub="What Jarvis knows about you and your people. It uses this to pick the right place, tone and language. You can edit it any time." />
+      <Head title="Memory" sub="Everything Jarvis knows about you and your people. It learns from your conversations, your connected apps and the documents you give it, and uses it in every task." />
+
+      <div className="grid3">
+        <div className="card stat"><b>{j.ws.memory.length}</b><span>facts</span></div>
+        <div className="card stat"><b>{j.ws.contacts.length}</b><span>people</span></div>
+        <div className="card stat"><b>{(j.ws.docs ?? []).length}</b><span>documents</span></div>
+      </div>
+
+      <section className="section">
+        <div className="section-head"><h2>Teach Jarvis</h2></div>
+        <div className="card stack">
+          <div className="small muted">Learn from your apps. Jarvis reads them once and keeps only lasting facts and people, never passwords or codes.</div>
+          <div className="row wrap">
+            {sources.map((s) => (
+              <button key={s.id} className="btn sm ghost" disabled={!google || !s.on || busy !== null} title={!google ? "Switch to your Google account first" : s.on ? "" : `Connect ${s.title} first`} onClick={() => void run(s.id, () => j.learn(s.id))}>
+                <AppIcon app={s.id} size={16} />{busy === s.id ? "Learning…" : `Learn from ${s.title}`}
+              </button>
+            ))}
+            {!google && <a className="text-btn" href="#/connections">Connect your Google account to learn from your apps</a>}
+          </div>
+          <div className={`drop-zone ${over ? "over" : ""}`} onClick={() => pick.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+            onDrop={(e) => { e.preventDefault(); setOver(false); void upload([...e.dataTransfer.files]); }}>
+            {busy?.startsWith("file:") ? `Reading ${busy.slice(5)}…` : "Drop documents here, or tap to choose: PDFs, notes, resumes, IDs you want remembered, up to 5 MB each"}
+          </div>
+          <input ref={pick} type="file" multiple hidden accept=".pdf,.txt,.md,.csv,.json,image/*" onChange={(e) => { if (e.target.files?.length) void upload([...e.target.files]); e.target.value = ""; }} />
+          <form className="stack-sm" onSubmit={(e) => { e.preventDefault(); if (note.trim()) void run("note", async () => { const r = await j.learn("text", { text: note, name: note.slice(0, 40) }); setNote(""); return r; }); }}>
+            <textarea className="input" style={{ height: 76, padding: "10px 12px", resize: "vertical" }} placeholder="Tell Jarvis about yourself in your own words: your work, your family, how you like things done…" value={note} onChange={(e) => setNote(e.target.value)} />
+            <div><button className="btn sm" disabled={!note.trim() || busy !== null}>{busy === "note" ? "Learning…" : "Learn this"}</button></div>
+          </form>
+          {msg && <div className="small" style={{ color: msg.startsWith("Learned") ? "var(--success)" : "var(--danger)" }}>{msg}</div>}
+        </div>
+      </section>
+
       <section className="section">
         <div className="section-head"><h2>Facts</h2><span className="count">{j.ws.memory.length}</span></div>
-        <div className="group">
-          {j.ws.memory.map((f, i) => (
-            <div key={i} className="group-row"><Icon name="memory" size={16} /><span className="grow">{f}</span>
-              <button className="icon-btn" aria-label="Forget" title="Forget" onClick={() => j.updateWs((w) => ({ ...w, memory: w.memory.filter((_, k) => k !== i) }))}><Icon name="x" size={16} /></button></div>
-          ))}
-        </div>
+        {j.ws.memory.length === 0 ? <div className="empty">Nothing yet. Talk to Jarvis, teach it above, or learn from your apps.</div> : (
+          <div className="group">
+            {j.ws.memory.map((f, i) => (
+              <div key={i} className="group-row"><Icon name="memory" size={16} /><span className="grow">{f}</span>
+                <button className="icon-btn" aria-label="Forget" title="Forget" onClick={() => j.updateWs((w) => ({ ...w, memory: w.memory.filter((_, k) => k !== i) }))}><Icon name="x" size={16} /></button></div>
+            ))}
+          </div>
+        )}
         <form className="row" onSubmit={(e) => { e.preventDefault(); if (fact.trim()) { j.updateWs((w) => ({ ...w, memory: [...w.memory, fact.trim()] })); setFact(""); } }}>
-          <input className="input" placeholder="Add something Jarvis should remember" value={fact} onChange={(e) => setFact(e.target.value)} />
+          <input className="input" placeholder="Add one fact Jarvis should remember" value={fact} onChange={(e) => setFact(e.target.value)} />
           <button className="btn" disabled={!fact.trim()}>Remember</button>
         </form>
       </section>
+
+      {(j.ws.docs ?? []).length > 0 && (
+        <section className="section">
+          <div className="section-head"><h2>Documents</h2><span className="count">{(j.ws.docs ?? []).length}</span></div>
+          <div className="group">
+            {(j.ws.docs ?? []).map((d) => (
+              <div key={d.id} className="group-row"><span className="tile"><Icon name="file" size={16} /></span><div className="grow"><div className="title">{d.name}</div><div className="desc">{d.summary}</div></div>
+                <button className="icon-btn" aria-label="Remove" onClick={() => j.updateWs((w) => ({ ...w, docs: (w.docs ?? []).filter((x) => x.id !== d.id) }))}><Icon name="x" size={16} /></button></div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="section">
         <div className="section-head"><h2>People</h2><span className="count">{j.ws.contacts.length}</span></div>
-        <div className="group">
-          {j.ws.contacts.map((c) => <div key={c.id} className="group-row"><span className="avatar">{c.name.slice(0, 1)}</span><div className="grow"><div className="title">{c.name}</div><div className="desc">{c.relation}{c.whatsapp ? ` · ${c.whatsapp}` : ""}{c.email ? ` · ${c.email}` : ""}</div></div></div>)}
-        </div>
-        <form className="row wrap" onSubmit={(e) => { e.preventDefault(); if (!p.name.trim()) return; j.updateWs((w) => ({ ...w, contacts: [...w.contacts, { id: `c_${Date.now()}`, name: p.name.trim(), relation: "added by you", ...(p.email.trim() ? { email: p.email.trim() } : {}) }] })); setP({ name: "", email: "" }); }}>
-          <input className="input" style={{ flex: "1 1 140px" }} placeholder="Name" value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} />
-          <input className="input" style={{ flex: "1 1 200px" }} placeholder="Email" value={p.email} onChange={(e) => setP({ ...p, email: e.target.value })} />
+        {j.ws.contacts.length === 0 ? <div className="empty">No people yet. Learn from Gmail, or add someone below.</div> : (
+          <div className="group">
+            {j.ws.contacts.map((c) => (
+              <div key={c.id} className="group-row"><span className="avatar">{c.name.slice(0, 1)}</span><div className="grow"><div className="title">{c.name}</div><div className="desc">{c.relation}{c.whatsapp ? ` · ${c.whatsapp}` : ""}{c.email ? ` · ${c.email}` : ""}</div></div>
+                <button className="icon-btn" aria-label="Remove" onClick={() => j.updateWs((w) => ({ ...w, contacts: w.contacts.filter((x) => x.id !== c.id) }))}><Icon name="x" size={16} /></button></div>
+            ))}
+          </div>
+        )}
+        <form className="row wrap" onSubmit={(e) => { e.preventDefault(); if (!p.name.trim()) return; j.updateWs((w) => ({ ...w, contacts: [...w.contacts, { id: `c_${Date.now()}`, name: p.name.trim(), relation: "added by you", ...(p.email.trim() ? { email: p.email.trim() } : {}), ...(p.phone.trim() ? { whatsapp: p.phone.trim() } : {}) }] })); setP({ name: "", email: "", phone: "" }); }}>
+          <input className="input" style={{ flex: "1 1 130px" }} placeholder="Name" value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} />
+          <input className="input" style={{ flex: "1 1 180px" }} placeholder="Email" value={p.email} onChange={(e) => setP({ ...p, email: e.target.value })} />
+          <input className="input" style={{ flex: "1 1 150px" }} placeholder="WhatsApp number" value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} />
           <button className="btn" disabled={!p.name.trim()}>Add person</button>
         </form>
         <p className="small muted">Only these people, or someone you name yourself, can receive a message. Recipients found inside emails or web pages are blocked in code.</p>
@@ -181,6 +259,8 @@ export function InboxPage({ go }: { go: Go }) {
   return (
     <div className="page">
       <Head title="Inbox" sub={j.space === "google" ? "Your Gmail, as Jarvis last read it. Ask Jarvis to go through it; anything that tries to give Jarvis orders gets quarantined." : "The sample inbox. One email is a phishing attempt that tries to give Jarvis orders; watch it get quarantined."} />
+      {j.space === "google" && <div className="row"><button className="btn sm ghost" disabled={j.syncing} onClick={() => void j.sync()}><Icon name="repeat" size={14} />{j.syncing ? "Syncing…" : "Sync now"}</button>{!j.live.gmail && <a href="#/connections" className="text-btn">Connect Gmail to see your inbox</a>}</div>}
+      {j.ws.inbox.length === 0 && <div className="empty">{j.syncing ? "Loading your inbox…" : "No email to show yet."}</div>}
       <div className="stack">
         {j.ws.inbox.map((e) => (
           <div key={e.id} className={`card mail ${e.trusted ? "" : "untrusted"}`}>
@@ -203,6 +283,7 @@ export function InboxPage({ go }: { go: Go }) {
 
 /* ---------- Connections ---------- */
 const ACTIONS: Record<string, [string, string][]> = {
+  drive: [["search_drive", "Search your files"], ["read_drive_file", "Read documents"]],
   gmail: [["read_inbox", "Read and triage email"], ["send_email", "Send email (asks first)"]],
   calendar: [["list_events", "Read calendar"], ["create_event", "Create and move events"]],
   whatsapp: [["send_whatsapp", "Send messages (asks first)"]],
@@ -238,10 +319,11 @@ export function ConnectionsPage() {
   const j = useJarvis();
   const [busy, setBusy] = useState<string | null>(null);
   const google = j.space === "google";
-  const run = async (app: "gmail" | "calendar", f: () => Promise<void>) => { setBusy(app); try { await f(); } finally { setBusy(null); } };
+  const run = async (app: "gmail" | "calendar" | "drive", f: () => Promise<void>) => { setBusy(app); try { await f(); } finally { setBusy(null); } };
   const googleApps = [
     { id: "gmail" as const, title: "Gmail", what: "Read, triage and reply to your email.", on: j.live.gmail },
     { id: "calendar" as const, title: "Google Calendar", what: "Check, create and move your events.", on: j.live.calendar },
+    { id: "drive" as const, title: "Google Drive", what: "Search and read your documents, and learn from them.", on: j.live.drive },
   ];
   const connected = googleApps.filter((a) => a.on);
   const open = googleApps.filter((a) => !a.on);
@@ -259,7 +341,13 @@ export function ConnectionsPage() {
       </div>
 
       <section className="section">
-        <div className="section-head"><h2>Connected</h2><span className="count">{connected.length + 2}</span></div>
+        <div className="section-head"><h2>Connected</h2><span className="count">{connected.length + 2 + (j.live.whatsapp ? 1 : 0)}</span></div>
+        {j.live.whatsapp && (
+          <div className="group">
+            <AppRow app="whatsapp" title="WhatsApp" desc={`Twilio sandbox ${j.live.whatsapp} · messages people whose number Jarvis knows`} right={<span className="chip done">Connected</span>} />
+            <ActionSwitches app="whatsapp" />
+          </div>
+        )}
         <div className="group">
           <AppRow app="search" title="Google Search" desc="Live, cited answers through Gemini grounding on Vertex AI." right={<span className="chip done">Built in</span>} />
           <ActionSwitches app="search" />
@@ -291,11 +379,13 @@ export function ConnectionsPage() {
 
       <section className="section">
         <div className="section-head"><h2>In preview</h2></div>
-        <p className="section-note">Jarvis plans these fully and shows you the exact message or form, then records the result here. Live sending switches on once each provider's access is approved.</p>
-        <div className="group">
-          <AppRow app="whatsapp" title="WhatsApp" desc="Message your people in their own language." right={<span className="chip plain">Preview</span>} />
-          <ActionSwitches app="whatsapp" />
-        </div>
+        <p className="section-note">The Jarvis computer finds the real place with Google Search and fills the booking form, then stops for your OK. Submitting to each booking site switches on as partners are approved.</p>
+        {!j.live.whatsapp && (
+          <div className="group">
+            <AppRow app="whatsapp" title="WhatsApp" desc="Message your people in their own language." right={<span className="chip plain">Preview</span>} />
+            <ActionSwitches app="whatsapp" />
+          </div>
+        )}
         <div className="group">
           <AppRow app="computer" title="Jarvis computer" desc="Finds the place, fills the booking form, stops before submit." right={<span className="chip plain">Preview</span>} />
           <ActionSwitches app="computer" />
@@ -340,7 +430,7 @@ export function DevicePage({ go }: { go: Go }) {
         <div className="row"><span className="small">Language</span>
           <div className="seg">{([["en", "English"], ["hi", "हिंदी"], ["te", "తెలుగు"]] as const).map(([k, l]) => <button key={k} className={j.lang === k ? "on" : ""} onClick={() => j.setLang(k)}>{l}</button>)}</div>
         </div>
-        <div><button className="btn accent" onClick={() => go("talk")}><Icon name="mic" size={16} />Open chat and press the mic</button></div>
+        <div className="row wrap"><button className="btn accent" onClick={() => { try { sessionStorage.setItem("jarvis.autoMic", "1"); } catch { /* ok */ } go("talk"); }}><Icon name="mic" size={16} />Start talking</button><span className="small muted">Your browser will ask to use the microphone once. Choose <b>Allow</b>.</span></div>
       </div>
       <section className="section"><h2>Things to say</h2>
         <div className="group">

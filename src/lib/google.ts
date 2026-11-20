@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
  */
 export const GMAIL = "google-mail";
 export const CALENDAR = "google-calendar";
+export const DRIVE = "google-drive";
 const host = () => process.env.NANGO_HOST || "https://api.nango.dev";
 const secret = () => process.env.NANGO_SECRET_KEY || "";
 export const nangoReady = () => Boolean(secret());
@@ -19,14 +20,14 @@ export function userId(req: Request): { id: string; fresh: boolean } {
 }
 export const cookieHeader = (id: string) => `${COOKIE}=${id}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000`;
 
-export interface Live { gmail: string | null; calendar: string | null; email: string | null }
+export interface Live { gmail: string | null; calendar: string | null; drive: string | null; email: string | null }
 const cache = new Map<string, { at: number; live: Live }>();
 
 /** Which Google apps this end user has connected. Looked up on the server, never trusted from the browser. */
 export async function liveFor(uid: string, fresh = false): Promise<Live> {
   const hit = cache.get(uid);
   if (!fresh && hit && Date.now() - hit.at < 60_000) return hit.live;
-  const none: Live = { gmail: null, calendar: null, email: null };
+  const none: Live = { gmail: null, calendar: null, drive: null, email: null };
   if (!nangoReady()) return none;
   const r = await fetch(`${host()}/connections?endUserId=${encodeURIComponent(uid)}`, { headers: { Authorization: `Bearer ${secret()}` } });
   if (!r.ok) return hit?.live ?? none;
@@ -35,6 +36,7 @@ export async function liveFor(uid: string, fresh = false): Promise<Live> {
   const live: Live = {
     gmail: mine.find((c) => c.provider_config_key === GMAIL)?.connection_id ?? null,
     calendar: mine.find((c) => c.provider_config_key === CALENDAR)?.connection_id ?? null,
+    drive: mine.find((c) => c.provider_config_key === DRIVE)?.connection_id ?? null,
     email: null,
   };
   if (live.gmail) {
@@ -123,4 +125,25 @@ export async function calList(conn: string) {
 export async function calCreate(conn: string, title: string, start: string, end: string) {
   const e = await proxy<GEvent>(conn, CALENDAR, "POST", "/calendar/v3/calendars/primary/events", { summary: title, start: { dateTime: start, timeZone: "Asia/Kolkata" }, end: { dateTime: end, timeZone: "Asia/Kolkata" } });
   return e.id;
+}
+
+/* ---------- Drive ---------- */
+interface GFile { id: string; name: string; mimeType: string; modifiedTime?: string; webViewLink?: string }
+export async function driveSearch(conn: string, query: string, max = 8) {
+  const q = query.trim() ? `(name contains '${query.replace(/'/g, "\\'")}' or fullText contains '${query.replace(/'/g, "\\'")}') and trashed = false` : "trashed = false";
+  const p = new URLSearchParams({ q, pageSize: String(max), orderBy: query.trim() ? "" : "modifiedTime desc", fields: "files(id,name,mimeType,modifiedTime,webViewLink)" });
+  if (query.trim()) p.delete("orderBy");
+  const r = await proxy<{ files?: GFile[] }>(conn, DRIVE, "GET", `/drive/v3/files?${p}`);
+  return (r.files ?? []).map((f) => ({ id: f.id, name: f.name, type: f.mimeType.replace("application/vnd.google-apps.", "google "), modified: f.modifiedTime, link: f.webViewLink }));
+}
+export async function driveRead(conn: string, id: string): Promise<{ name: string; text: string }> {
+  const meta = await proxy<GFile>(conn, DRIVE, "GET", `/drive/v3/files/${encodeURIComponent(id)}?fields=id,name,mimeType`);
+  const exportAs = meta.mimeType === "application/vnd.google-apps.spreadsheet" ? "text/csv" : meta.mimeType.startsWith("application/vnd.google-apps.") ? "text/plain" : null;
+  const path = exportAs ? `/drive/v3/files/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent(exportAs)}` : `/drive/v3/files/${encodeURIComponent(id)}?alt=media`;
+  const host = process.env.NANGO_HOST || "https://api.nango.dev";
+  const r = await fetch(`${host}/proxy${path}`, { headers: { Authorization: `Bearer ${process.env.NANGO_SECRET_KEY}`, "Connection-Id": conn, "Provider-Config-Key": DRIVE } });
+  if (!r.ok) throw new Error(`Drive ${r.status}`);
+  const ct = r.headers.get("content-type") || "";
+  const text = /text|json|csv|xml/.test(ct) || exportAs ? (await r.text()) : `(${meta.mimeType} file; open it in Drive to view)`;
+  return { name: meta.name, text: text.slice(0, 12000) };
 }

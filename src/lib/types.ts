@@ -23,6 +23,8 @@ export interface Workspace {
   /** Actions the owner switched off on the Connections page. Enforced in code. */
   disabled?: string[];
   profile?: { city: string; languages: string; notes: string };
+  /** Documents the owner gave Jarvis, kept as short summaries in memory. */
+  docs?: { id: string; name: string; summary: string; at: string; source: string }[];
 }
 
 export type Tier = "read" | "reversible" | "external";

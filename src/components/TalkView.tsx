@@ -49,6 +49,10 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [j.chat.msgs.length, j.busy, live]);
   useEffect(() => () => voiceRef.current?.stop(), []);
+  useEffect(() => {
+    try { if (sessionStorage.getItem("jarvis.autoMic") === "1") { sessionStorage.removeItem("jarvis.autoMic"); setTimeout(() => void toggleMic(), 250); } } catch { /* ok */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const listening = voice.state !== "idle" && voice.state !== "error";
   const mark: MarkState = voice.state === "speaking" ? "speaking" : listening ? "listening" : "idle";
@@ -189,7 +193,7 @@ export function TalkView({ go }: { go: (v: View, id?: string) => void }) {
             {listening ? (
               <div className="composer-live">
                 <span className={`wave ${voice.state === "speaking" || live ? "" : "still"}`}><i /><i /><i /><i /></span>
-                <span className="truncate">{live || { listening: "Listening on Gemini Live. Just talk, you can interrupt.", speaking: "Speaking. Interrupt any time.", working: "Working on it", connecting: "Connecting to Gemini Live", idle: "", error: "" }[voice.state]}</span>
+                <span className="truncate">{live || { listening: "Listening. Just talk, you can interrupt.", speaking: "Speaking. Interrupt any time.", working: "Working on it", connecting: "Allow the microphone if your browser asks…", idle: "", error: "" }[voice.state]}</span>
               </div>
             ) : (
               <input placeholder={j.lang === "hi" ? "Jarvis से कहिए…" : j.lang === "te" ? "Jarvis కి చెప్పండి…" : "Ask Jarvis"} value={text} onChange={(e) => setText(e.target.value)} aria-label="Message" />

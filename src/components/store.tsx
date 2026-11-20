@@ -26,6 +26,8 @@ const ROUTINES: Routine[] = [
 interface State {
   ws: Workspace; chats: Chat[]; chatId: string; tasks: Task[]; pending: (Pending & { taskId: string }) | null;
   computer: AgentResult["computer"]; lang: Lang; busy: boolean; routines: Routine[];
+  /** The workspace not in use, kept so switching never mixes real and sample data. */
+  stash?: Partial<Record<"google" | "sample", Workspace>>;
 }
 
 function fresh(): State {
@@ -33,7 +35,16 @@ function fresh(): State {
   return { ws: seedWorkspace(), chats: [{ id, title: "New chat", at: new Date().toISOString(), msgs: [], history: [] }], chatId: id, tasks: [], pending: null, computer: null, lang: "en", busy: false, routines: ROUTINES };
 }
 
-export interface LiveState { available: boolean; gmail: boolean; calendar: boolean; email: string | null }
+export interface LiveState { available: boolean; gmail: boolean; calendar: boolean; drive: boolean; email: string | null; whatsapp: string | null }
+export type GApp = "gmail" | "calendar" | "drive";
+export type LearnSource = "gmail" | "calendar" | "drive" | "text" | "file" | "chat";
+
+/** A new Google workspace: the owner's own data only, nothing from the samples. */
+function googleWs(email: string | null): Workspace {
+  const seed = seedWorkspace();
+  const name = email ? email.split("@")[0].replace(/[._\d]+/g, " ").trim().replace(/\b\w/g, (c) => c.toUpperCase()) || "You" : "You";
+  return { ...seed, owner: name, contacts: [], memory: [], inbox: [], calendar: [], reminders: [], sent: [], bookings: [], audit: [], executed: [], docs: [], profile: { city: "", languages: "English", notes: "" } };
+}
 
 export type Space = "google" | "sample" | null;
 
@@ -42,8 +53,11 @@ interface Api extends State {
   /** Which workspace Jarvis works in: the owner's real Google account, or sample data. */
   space: Space;
   setSpace: (s: "google" | "sample") => void;
-  connect: (app: "gmail" | "calendar") => Promise<void>;
-  disconnect: (app: "gmail" | "calendar") => Promise<void>;
+  connect: (app: GApp) => Promise<void>;
+  disconnect: (app: GApp) => Promise<void>;
+  sync: () => Promise<void>;
+  syncing: boolean;
+  learn: (source: LearnSource, extra?: { text?: string; name?: string; mime?: string; data?: string }) => Promise<{ facts: number; people: number; error?: string }>;
   chat: Chat;
   send: (text: string, voice?: boolean) => Promise<AgentResult | null>;
   decide: (approve: boolean) => Promise<AgentResult | null>;
@@ -76,7 +90,7 @@ async function post(url: string, body: unknown): Promise<{ ok: true; r: AgentRes
 export function JarvisProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<State>(fresh);
   const [loaded, setLoaded] = useState(false);
-  const [live, setLive] = useState<LiveState>({ available: false, gmail: false, calendar: false, email: null });
+  const [live, setLive] = useState<LiveState>({ available: false, gmail: false, calendar: false, drive: false, email: null, whatsapp: null });
   const refreshLive = useCallback(async (fresh = false) => {
     try {
       const r = await fetch(`/api/connect/status${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
@@ -95,7 +109,12 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (saved?.ws && saved?.chats?.length) setS({ ...fresh(), ...saved, busy: false });
+      if (saved?.ws && saved?.chats?.length) {
+        const sp = localStorage.getItem("jarvis.space");
+        // A Google workspace never carries the sample people or mail from before.
+        if (sp === "google" && saved.ws.contacts?.some((c: { id: string }) => c.id === "c_ravi")) saved.ws = { ...googleWs(null), memory: [], chats: undefined };
+        setS({ ...fresh(), ...saved, busy: false });
+      }
     } catch { /* start fresh */ }
     setLoaded(true);
   }, []);
@@ -132,6 +151,50 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const merge = useCallback((label: string, out: { facts?: string[]; people?: { name: string; relation: string; email?: string; phone?: string }[]; summary?: string }, doc?: { name: string; source: string }) => {
+    let nf = 0, np = 0;
+    setS((x) => {
+      const have = new Set(x.ws.memory.map((m) => m.toLowerCase().replace(/[^a-z0-9]/g, "")));
+      const facts = (out.facts ?? []).filter((f) => { const k = f.toLowerCase().replace(/[^a-z0-9]/g, ""); if (!k || have.has(k)) return false; have.add(k); return true; });
+      nf = facts.length;
+      const contacts = [...x.ws.contacts];
+      for (const pp of out.people ?? []) {
+        if (!pp.name || /noreply|no-reply|notification/i.test(`${pp.name} ${pp.email ?? ""}`)) continue;
+        const i = contacts.findIndex((c) => c.name.toLowerCase() === pp.name.toLowerCase() || (pp.email && c.email?.toLowerCase() === pp.email.toLowerCase()));
+        if (i >= 0) { contacts[i] = { ...contacts[i], email: contacts[i].email || pp.email || undefined, whatsapp: contacts[i].whatsapp || pp.phone || undefined }; continue; }
+        contacts.push({ id: uid("c"), name: pp.name, relation: pp.relation || label.toLowerCase(), ...(pp.email ? { email: pp.email } : {}), ...(pp.phone ? { whatsapp: pp.phone } : {}) });
+        np++;
+      }
+      const docs = doc ? [...(x.ws.docs ?? []), { id: uid("d"), name: doc.name, summary: out.summary || `${facts.length} facts learned`, at: new Date().toISOString(), source: doc.source }] : x.ws.docs;
+      return { ...x, ws: { ...x.ws, memory: [...x.ws.memory, ...facts], contacts, docs } };
+    });
+    return { nf, np };
+  }, []);
+
+  const learn = useCallback(async (source: LearnSource, extra: { text?: string; name?: string; mime?: string; data?: string } = {}) => {
+    const r = await fetch("/api/memory/learn", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ source, ...extra, known: ref.current.ws.memory }) }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : { error: "Network problem." };
+    if (!r || !r.ok) return { facts: 0, people: 0, error: j.error || "Could not learn from that." };
+    await new Promise((res) => setTimeout(res, 0));
+    const before = ref.current.ws.memory.length, beforeP = ref.current.ws.contacts.length;
+    merge(j.label || source, j, source === "file" || source === "text" ? { name: extra.name || (source === "text" ? "Note" : "Document"), source } : undefined);
+    await new Promise((res) => setTimeout(res, 50));
+    return { facts: Math.max(0, ref.current.ws.memory.length - before), people: Math.max(0, ref.current.ws.contacts.length - beforeP) };
+  }, [merge]);
+
+  const [syncing, setSyncing] = useState(false);
+  const sync = useCallback(async () => {
+    if (spaceRef.current !== "google") return;
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/workspace/sync", { cache: "no-store" });
+      if (!r.ok) return;
+      const j = (await r.json()) as { inbox: Workspace["inbox"] | null; calendar: Workspace["calendar"] | null };
+      setS((x) => ({ ...x, ws: { ...x.ws, ...(j.inbox ? { inbox: j.inbox.map((m) => ({ ...m, trusted: true })) } : {}), ...(j.calendar ? { calendar: j.calendar } : {}) } }));
+    } finally { setSyncing(false); }
+  }, []);
+  useEffect(() => { if (loaded && space === "google" && (live.gmail || live.calendar)) void sync(); }, [loaded, space, live.gmail, live.calendar, sync]);
+
   const send = useCallback(async (text: string, voice = false) => {
     const t = text.trim();
     if (!t) return null;
@@ -144,11 +207,15 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
       chats: patchChat(x, chat.id, (c) => ({ ...c, title: c.msgs.length ? c.title : t.slice(0, 48), at: new Date().toISOString(), msgs: [...c.msgs, { id: uid("m"), who: "user", text: t, voice }] })),
     }));
     const out = await post("/api/agent", { text: t, history: chat.history, workspace: st.ws, lang: st.lang, live: spaceRef.current === "google", voice });
-    if (out.ok) apply(taskId, chat.id, out.r, "request");
+    if (out.ok) {
+      apply(taskId, chat.id, out.r, "request");
+      // The memory learns from the conversation in the background, like a brain: lasting facts only.
+      if (t.length > 12) void learn("chat", { text: `User: ${t}\nJarvis: ${out.r.reply}` });
+    }
     else setS((x) => ({ ...x, tasks: x.tasks.map((k) => (k.id === taskId ? { ...k, status: "failed", reply: out.error } : k)), chats: patchChat(x, chat.id, (c) => ({ ...c, msgs: [...c.msgs, { id: uid("m"), who: "jarvis", text: out.error, error: true }] })) }));
     setS((x) => ({ ...x, busy: false }));
     return out.ok ? out.r : null;
-  }, [apply]);
+  }, [apply, learn]);
 
   const decide = useCallback(async (approve: boolean) => {
     const st = ref.current;
@@ -165,7 +232,17 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     return out.ok ? out.r : null;
   }, [apply]);
 
-  const connect = useCallback(async (app: "gmail" | "calendar") => {
+  /** Swaps workspaces: the current one is kept aside, the other comes back exactly as it was. */
+  function switchTo(v: "google" | "sample", email: string | null) {
+    setS((x) => {
+      const from = spaceRef.current ?? "sample";
+      const stash = { ...(x.stash ?? {}), [from]: x.ws };
+      const next = stash[v] ?? (v === "google" ? googleWs(email) : seedWorkspace());
+      return { ...x, stash, ws: next, pending: null, computer: null };
+    });
+  }
+
+  const connect = useCallback(async (app: GApp) => {
     const r = await fetch("/api/connect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.url) { window.alert(j.error || "Could not start Google sign-in."); return; }
@@ -173,31 +250,31 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     for (let i = 0; i < 90; i++) {
       await new Promise((res) => setTimeout(res, 2000));
       const st = await refreshLive(true);
-      if (st && (app === "gmail" ? st.gmail : st.calendar)) {
-        // Real data replaces the sample data for that app.
-        setS((x) => ({ ...x, ws: app === "gmail" ? { ...x.ws, inbox: [], sent: [] } : { ...x.ws, calendar: [] } }));
+      if (st && st[app]) {
+        // The owner's own workspace: real data only.
+        if (spaceRef.current !== "google") switchTo("google", st.email);
         keepSpace("google");
+        setTimeout(() => void sync(), 300);
         try { w?.close(); } catch { /* closed */ }
         return;
       }
       if (w && w.closed && i > 3) { await refreshLive(true); return; }
     }
-  }, [refreshLive]);
-  const disconnect = useCallback(async (app: "gmail" | "calendar") => {
+  }, [refreshLive, sync]);
+  const disconnect = useCallback(async (app: GApp) => {
     await fetch("/api/connect/disconnect", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ app }) });
     await refreshLive(true);
-    setS((x) => { const seed = fresh().ws; return { ...x, ws: app === "gmail" ? { ...x.ws, inbox: seed.inbox } : { ...x.ws, calendar: seed.calendar } }; });
+    setS((x) => ({ ...x, ws: app === "gmail" ? { ...x.ws, inbox: [] } : app === "calendar" ? { ...x.ws, calendar: [] } : x.ws }));
   }, [refreshLive]);
 
   const setSpace = useCallback((v: "google" | "sample") => {
+    if (spaceRef.current !== v) switchTo(v, live.email);
     keepSpace(v);
-    const seed = fresh().ws;
-    // Each workspace starts from its own data: real mail and events are fetched on demand; sample data is restored.
-    setS((x) => ({ ...x, pending: null, ws: v === "sample" ? { ...x.ws, inbox: seed.inbox, calendar: seed.calendar, contacts: seed.contacts, sent: [] } : { ...x.ws, inbox: [], calendar: [], sent: [] } }));
-  }, []);
+    if (v === "google") setTimeout(() => void sync(), 200);
+  }, [live.email, sync]);
 
   const api = useMemo<Api>(() => ({
-    ...s, live, connect, disconnect, space, setSpace,
+    ...s, live, connect, disconnect, space, setSpace, sync, syncing, learn,
     chat: s.chats.find((c) => c.id === s.chatId) ?? s.chats[0],
     send, decide,
     newChat: () => setS((x) => {
@@ -216,7 +293,7 @@ export function JarvisProvider({ children }: { children: ReactNode }) {
     updateWs: (f) => setS((x) => ({ ...x, ws: f(x.ws) })),
     setRoutines: (routines) => setS((x) => ({ ...x, routines })),
     reset: () => setS(fresh()),
-  }), [s, send, decide, live, connect, disconnect, space, setSpace]);
+  }), [s, send, decide, live, connect, disconnect, space, setSpace, sync, syncing, learn]);
 
   if (!loaded) return null;
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
