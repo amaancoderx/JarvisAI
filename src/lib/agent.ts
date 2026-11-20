@@ -162,7 +162,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
         steps.push({ tool, label, status: "done", detail: out.detail, tier });
         responses.push({ functionResponse: { id: fc.id, name: tool, response: { result: out.result } } });
       } catch (e) {
-        steps.push({ tool, label, status: "error", detail: "Failed", tier });
+        steps.push({ tool, label, status: "error", detail: tool === "search_web" ? "Search busy, continued with what Jarvis knows" : "Failed", tier });
         responses.push({ functionResponse: { id: fc.id, name: tool, response: { error: (e as Error).message } } });
       }
     }
