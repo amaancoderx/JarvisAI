@@ -604,19 +604,21 @@ export function HowPage({ go }: { go: Go }) {
       <div className="page-head">
         <div className="row"><JarvisMark size={36} /><span className="chip google">Startup Buildathon India 2026 · Google DeepMind × Google Cloud</span></div>
         <h1>How Jarvis works</h1>
-        <p>Jarvis is a voice-first AI agent for India, built by team Bas Bolo in Hyderabad. You say what you need in English, Hindi or Telugu; Jarvis plans it, does it across email, calendar, WhatsApp and the web, and asks before anything goes out.</p>
+        <p>Jarvis is a voice-first AI agent for India, built by team Bas Bolo in Hyderabad. You say what you need in English, Hindi or Telugu; Jarvis plans it, does it across Gmail, Calendar, Drive, WhatsApp and the web, with its own cloud computer, and asks before anything goes out.</p>
       </div>
       <section className="section"><h2>From one sentence to a finished task</h2><div className="figure"><img src="/flow.png" alt="Process flow" /></div></section>
       <section className="section"><h2>Architecture</h2><div className="figure"><img src="/architecture.png" alt="Architecture" /></div></section>
       <section className="section"><h2>Google AI inside</h2>
         <div className="grid2">
           {[
-            ["Gemini Live", "Real-time, interruptible voice. The browser connects with a short-lived token minted by our server."],
-            ["Gemini API", "The planner: breaks a request into tool calls with function calling, then checks each result."],
+            ["Gemini Live", "Real-time, interruptible voice in English, Hindi and Telugu. The browser connects with a short-lived token minted by our server."],
+            ["Gemini on Vertex AI", "The planner: breaks a request into tool calls with function calling, checks each result, and writes organised answers with tables and sources."],
+            ["Gemini Computer Use", "The Jarvis Cloud Computer: a real browser on Cloud Run that Gemini sees and drives step by step, shown live in the chat. It stops before anything is submitted."],
             ["Gemma", "Routes every request first: question or task, and which skill, before the bigger model runs."],
-            ["Google Search grounding", "Live, cited answers for places, news and prices. It is how Jarvis picks a real restaurant."],
-            ["Google AI Studio", "Where we test prompts and tool schemas and manage keys."],
-            ["Google Cloud", "Stateless service in a Docker image built for Cloud Run in Mumbai; Cloud SQL, Pub/Sub and Scheduler next."],
+            ["Google Search grounding", "Live, cited answers for places, news and prices, and the right starting page for the Cloud Computer."],
+            ["Google Workspace", "Your real Gmail, Calendar and Drive through Google sign-in, with each action switchable in Connections."],
+            ["Firestore", "Each person's memory, chats and settings. Memory learns by itself from conversations, connected apps and documents you add."],
+            ["Google Cloud Run", "One Docker service in Mumbai (asia-south1), built with Cloud Build into Artifact Registry. It scales with demand."],
           ].map(([t, d]) => <div key={t} className="card"><b>{t}</b><div className="small muted" style={{ marginTop: 4 }}>{d}</div></div>)}
         </div>
       </section>
