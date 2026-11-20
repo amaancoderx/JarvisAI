@@ -23,9 +23,19 @@
 
 Jarvis is a voice-first AI agent that does the work instead of just answering. You talk to it the way you talk to a person, in Hindi, Telugu, English or a mix of all three, and it plans the task and carries it out across Gmail, Google Calendar, WhatsApp and the open web. It has its own computer in the cloud, so it can open a website, fill a form and make a booking like a person would. It remembers the people and things that matter to you. And nothing gets sent or booked until you say yes.
 
-This repository is the **Google AI edition** of Jarvis, built by team **Bas Bolo** for the [Startup Buildathon India 2026](https://startupbuildathon.com/) by Google DeepMind and Google Cloud, powered by Hack2skill, nasscom and HEADSTART. It holds the architecture, plans and submission documents. Code lands here during the City Buildathon.
+This repository is the **Google AI edition** of Jarvis, built by team **Bas Bolo** at the [Startup Buildathon India 2026](https://startupbuildathon.com/) City Buildathon, Hyderabad, by Google DeepMind and Google Cloud, powered by Hack2skill, nasscom and HEADSTART.
 
-> A working version of Jarvis already runs today on our own stack. This edition rebuilds it on Gemini Live, the Gemini API, Gemma and Google Cloud, without touching the version our users already have.
+## ▶️ Try it live
+
+**[jarvis-ai-eight-swart.vercel.app](https://jarvis-ai-eight-swart.vercel.app)** · no sign-in needed
+
+Tap a suggestion or press **Talk** and speak in English, Hindi or Telugu. The prototype runs on a **demo workspace** (sample inbox, calendar and contacts), so judges can try real sends and bookings safely: nothing leaves the sandbox. The AI is real: Gemini plans every task, Google Search grounding answers live questions, Gemini Live handles voice and Gemma routes requests.
+
+**Try these:**
+- *"Ravi ke saath kal raat 8 baje Banjara Hills mein dinner book karo, aur use WhatsApp pe bata do"*
+- *"Go through my inbox and handle anything urgent."* (watch the phishing email get quarantined)
+- *"రేపు సాయంత్రం 7 గంటలకు అమ్మకి కాల్ చేయమని గుర్తు చేయి"*
+- *"What are the biggest AI announcements this week?"*
 
 ## Table of Contents
 
@@ -200,15 +210,37 @@ Full detail: **[docs/business.md](docs/business.md)**
 | **Technical architecture** | [How it works](#-how-it-works), [docs/architecture.md](docs/architecture.md), [docs/trust-and-safety.md](docs/trust-and-safety.md) |
 | **Use of Google AI** | [Built on Google AI](#-built-on-google-ai), [docs/google-ai.md](docs/google-ai.md), [docs/google-cloud.md](docs/google-cloud.md) |
 
+## 💻 Run it yourself
+
+```bash
+git clone https://github.com/amaancoderx/JarvisAI && cd JarvisAI
+npm install
+cp .env.example .env.local   # add GEMINI_API_KEY from https://aistudio.google.com/apikey
+npm run dev                  # http://localhost:3100
+node scripts/e2e.mjs         # end-to-end checks: booking, injection, tamper, Telugu, live web
+```
+
+Deploy to **Google Cloud Run** (Mumbai):
+
+```bash
+gcloud run deploy jarvis --source . --region asia-south1 --allow-unauthenticated   --set-env-vars GEMINI_API_KEY=...,APPROVAL_SECRET=...
+```
+
 ## 📁 Repository layout
 
 ```
 JarvisAI/
-├── README.md
+├── src/
+│   ├── app/                 Next.js UI and API routes (/api/agent, /api/approve, /api/live-token)
+│   ├── components/          App shell, Gemini Live voice client
+│   └── lib/                 agent loop, Gemini + Gemma, skills, trust layer, demo workspace
+├── scripts/e2e.mjs          end-to-end scenario checks
+├── Dockerfile               Cloud Run image
 ├── assets/
 │   ├── banner.png
 │   ├── logo.png
-│   └── screenshots/
+│   ├── prototype/           screenshots of this prototype
+│   └── screenshots/         screenshots of Jarvis in production
 └── docs/
     ├── architecture.md
     ├── google-ai.md
