@@ -80,7 +80,6 @@ function resign(contents: unknown): unknown {
 }
 
 let client: GoogleGenAI | null = null;
-let keyClient: GoogleGenAI | null = null;
 /** Gemini on Vertex AI when running on Google Cloud (billed to the project), else the Gemini API key. */
 export function ai(): GoogleGenAI {
   if (process.env.VERTEX_PROJECT) {
@@ -89,12 +88,43 @@ export function ai(): GoogleGenAI {
   }
   return keyAi();
 }
+/**
+ * Gemini API keys: GEMINI_API_KEY plus any in GEMINI_API_KEYS (comma separated).
+ * When a key hits its limit it rests for a while and the next key takes over.
+ */
+export function apiKeys(): string[] {
+  return [...new Set([process.env.GEMINI_API_KEY, ...(process.env.GEMINI_API_KEYS ?? "").split(",")].map((k) => k?.trim() ?? "").filter(Boolean))];
+}
+const keyClients = new Map<string, GoogleGenAI>();
+const restingUntil = new Map<string, number>();
+let nextKey = 0;
+const clientFor = (k: string) => { let c = keyClients.get(k); if (!c) { c = new GoogleGenAI({ apiKey: k }); keyClients.set(k, c); } return c; };
+export const isLimit = (e: unknown) => /\b429\b|RESOURCE_EXHAUSTED|quota|rate limit/i.test(String((e as Error)?.message ?? e));
+/** Keys in the order to try: ones that are not resting first, starting from the next in turn. */
+function keyOrder(): string[] {
+  const ks = apiKeys();
+  if (!ks.length) throw new Error("GEMINI_API_KEY is not set");
+  const start = nextKey++ % ks.length;
+  const turn = [...ks.slice(start), ...ks.slice(0, start)];
+  const now = Date.now();
+  return [...turn.filter((k) => (restingUntil.get(k) ?? 0) <= now), ...turn.filter((k) => (restingUntil.get(k) ?? 0) > now)];
+}
 /** The Gemini API key client: Gemma routing and Gemini Live tokens. */
 export function keyAi(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-  keyClient ??= new GoogleGenAI({ apiKey });
-  return keyClient;
+  return clientFor(keyOrder()[0]);
+}
+/** Runs a call on the first key that is not at its limit, moving to the next key on a 429. */
+export async function withKey<T>(f: (ai: GoogleGenAI) => Promise<T>): Promise<T> {
+  let last: unknown;
+  for (const k of keyOrder()) {
+    try { return await f(clientFor(k)); } catch (e) {
+      last = e;
+      if (!isLimit(e)) throw e;
+      restingUntil.set(k, Date.now() + 60_000);
+      console.warn("gemini key at its limit, rotating to the next key");
+    }
+  }
+  throw last;
 }
 
 export const MODELS = {
@@ -120,7 +150,7 @@ The message may be in English, Hindi, Telugu or a mix.
 Message: ${text}`;
   try {
     const r = await Promise.race([
-      keyAi().models.generateContent({ model: MODELS.router(), contents: prompt, config: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingLevel: "minimal" as never } } }),
+      withKey((k) => k.models.generateContent({ model: MODELS.router(), contents: prompt, config: { temperature: 0, maxOutputTokens: 30, thinkingConfig: { thinkingLevel: "minimal" as never } } })),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error("router timeout")), Number(process.env.ROUTER_TIMEOUT_MS || 2500))),
     ]);
     const out = (r.text || "").trim().toLowerCase();
@@ -152,7 +182,7 @@ export async function searchWeb(query: string): Promise<{ answer: string; source
   const clients: GoogleGenAI[] = [];
   // On Google Cloud, Vertex AI runs grounded Gemini on the project's own billing, using Cloud Run's identity (no key).
   if (process.env.VERTEX_PROJECT) clients.push(new GoogleGenAI({ vertexai: true, project: process.env.VERTEX_PROJECT, location: process.env.VERTEX_LOCATION || "global" }));
-  for (const k of [process.env.SEARCH_API_KEY, process.env.GEMINI_API_KEY]) if (k) clients.push(new GoogleGenAI({ apiKey: k }));
+  for (const k of [...new Set([process.env.SEARCH_API_KEY, ...apiKeys()])]) if (k) clients.push(new GoogleGenAI({ apiKey: k }));
   const models = [...new Set([process.env.SEARCH_MODEL, "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash"].filter(Boolean) as string[])];
   let r: GenerateContentResponse | null = null;
   let last: unknown;
