@@ -2,54 +2,46 @@
 
 [Back to README](../README.md)
 
-Every Jarvis service is already a Docker container, so it moves straight onto Cloud Run.
+Jarvis is live on Google Cloud Run in Mumbai: **[jarvis-704571930437.asia-south1.run.app](https://jarvis-704571930437.asia-south1.run.app)**
 
-## Services
+## What runs today
 
 ```mermaid
 flowchart LR
-    C["Client"] --> LB["HTTPS endpoint"]
-    LB --> VO["voice<br/>Cloud Run"]
-    LB --> WO["work<br/>Cloud Run"]
-    VO <--> GL["Gemini Live"]
-    VO --> GE["Gemma"]
-    WO <--> GA["Gemini API"]
-    WO --> PS["Pub/Sub"]
-    PS --> CO["computer<br/>Cloud Run"]
-    WO --> SQL["Cloud SQL<br/>PostgreSQL"]
-    WO --> GCS["Cloud Storage<br/>audit log"]
-    SCH["Cloud Scheduler"] --> WO
-    SM["Secret Manager"] -.-> VO
-    SM -.-> WO
-    SM -.-> CO
+    B["Browser<br/>web app"] --> CR["Cloud Run<br/>asia-south1"]
+    B -. "short-lived token" .-> GL["Gemini Live API"]
+    CR --> VX["Vertex AI<br/>Gemini planner, Computer Use,<br/>Search grounding"]
+    CR --> GM["Gemma 4<br/>router"]
+    CR --> FS["Firestore<br/>memory, chats, settings"]
+    CR --> OA["Google OAuth<br/>Gmail, Calendar, Drive"]
+    CR --> TW["Twilio<br/>WhatsApp"]
+    CB["Cloud Build"] --> AR["Artifact Registry"] --> CR
 ```
 
 | Service | Role |
 |---------|------|
-| **Cloud Run: voice** | Gemini Live sessions and Gemma routing |
-| **Cloud Run: work** | Planner, executor, trust layer, skills |
-| **Cloud Run: computer** | Isolated browser sessions for web tasks, scale to zero when idle |
-| **Cloud SQL (PostgreSQL)** | Memory, tasks, approvals |
-| **Cloud Storage** | Action log, audit trail, task screenshots |
-| **Pub/Sub** | Queue for long-running tasks, so the voice conversation never waits |
-| **Cloud Scheduler** | Reminders and routines |
-| **Secret Manager** | API keys and connected-account tokens |
-| **Cloud Logging and Monitoring** | Errors, latency and cost tracking |
+| **Cloud Run** | One Docker service: the web app, the API and the Jarvis Cloud Computer (Chromium driven by Gemini Computer Use) |
+| **Vertex AI** | Gemini planner with function calling, Gemini Computer Use, and Google Search grounding, billed to the project using Cloud Run's own identity (no key in the code) |
+| **Firestore** | Each person's memory, chats and settings |
+| **Cloud Build and Artifact Registry** | Build the image from source on every deploy |
+| **Gemini Live API** | Voice; the server mints a short-lived token so the key never reaches the browser |
 
-## Region
+Region: **asia-south1 (Mumbai)** for low latency in India. Cloud Run scales with demand, and idle cloud-computer sessions close after 10 minutes.
 
-**asia-south1 (Mumbai)**, for low latency for users in India.
+## Deploy
 
-## Scaling
+```bash
+gcloud run deploy jarvis --source . --region asia-south1 --allow-unauthenticated \
+  --env-vars-file env.yaml --memory 2Gi --cpu 2 --timeout 300
+```
 
-- The voice, work and computer services scale independently, so a spike in web tasks does not slow down conversation.
-- Browser sessions are the most expensive part, so they run as separate containers that start per task and scale to zero.
-- Gemma routing keeps most simple messages away from the larger model.
+The service account needs `aiplatform.user` (Vertex AI) and `datastore.user` (Firestore).
 
-## Deployment steps (buildathon)
+## Next on Google Cloud
 
-1. Create the project and enable Cloud Run, Cloud SQL, Pub/Sub, Scheduler, Secret Manager and the Gemini API.
-2. Create the Cloud SQL instance and run the schema.
-3. Store keys and tokens in Secret Manager.
-4. Build and deploy the `voice`, `work` and `computer` containers to Cloud Run in asia-south1.
-5. Point the web client at the services and run the end-to-end demo.
+| Service | Why |
+|---------|-----|
+| **Secret Manager** | Move keys out of environment variables |
+| **Pub/Sub** | Run long tasks in the background so voice never waits |
+| **Cloud Scheduler** | Routines and reminders that fire on time without the app open |
+| **Cloud Storage** | Keep task screenshots and the audit trail long term |

@@ -51,6 +51,6 @@ flowchart TD
 
 ## Privacy
 
-- Connected-account tokens are stored in Secret Manager, never in logs.
+- Connected-account tokens stay on the server with our OAuth broker, never in the browser or in logs.
 - Memory belongs to the user and can be viewed and deleted.
 - Designed with India's DPDP Act in mind: clear purpose, user control and deletion.

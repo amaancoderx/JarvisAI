@@ -2,7 +2,9 @@
 
 [Back to README](../README.md)
 
-This is the architecture of the Google AI edition of Jarvis, the version we build at the Startup Buildathon. It keeps the design that already works in production today and moves the AI and the hosting onto Gemini and Google Cloud.
+This is the architecture of the Google AI edition of Jarvis. It keeps the design that already works in production and moves the AI and the hosting onto Gemini and Google Cloud.
+
+**Built today:** one Next.js service on Cloud Run with Gemini on Vertex AI, Gemini Computer Use, Gemma, Search grounding and Firestore. See the [architecture diagram](../assets/architecture.png). Where this page describes Pub/Sub, a separate services layout or a SQL database, that is the planned shape as Jarvis grows.
 
 ## Design goals
 
@@ -79,7 +81,7 @@ flowchart TB
 - **Planner.** The Gemini API turns the request into a short list of steps, each one a structured tool call that is checked against a schema. Free-form actions are rejected.
 - **Executor.** Runs each step through the trust layer, then through the skill.
 - **Result checker.** Confirms each step actually worked (the email shows as sent, the event exists) before Jarvis says "done".
-- Long tasks run through **Pub/Sub**, so the voice lane keeps talking while the work happens.
+- Long tasks will run through **Pub/Sub** (planned), so the voice lane keeps talking while the work happens.
 
 ### Trust layer
 
@@ -87,14 +89,14 @@ Covered in full in [trust-and-safety.md](trust-and-safety.md). In short: fixed r
 
 ### Cloud computer
 
-- An isolated, headless browser per task, running in its own container.
+- A headless Chromium browser on Cloud Run, one session per person, driven by Gemini Computer Use.
 - Navigates real websites, fills forms, and **stops before the final submit** to ask for approval.
-- Streams a live view to the user so they can watch it work.
+- Streams a live view into the chat so the user can watch it work.
 - Shuts down when idle.
 
 ### Memory
 
-- People, facts and past conversations, stored in **Cloud SQL (PostgreSQL)**.
+- People, facts, documents and past conversations, stored per person in **Firestore**. It learns by itself from chats, Gmail, Calendar, Drive and documents the user adds.
 - Each chat has its own short-term context; long-term memory is shared across chats.
 - Gemini's long context lets the planner use relevant memory without extra lookups.
 
@@ -154,8 +156,8 @@ JarvisAI/
 | Language | TypeScript |
 | Client | Next.js |
 | Services | Node.js on Cloud Run |
-| Realtime | WebSockets |
-| AI | Gemini Live, Gemini API, Gemma |
-| Data | Cloud SQL (PostgreSQL), Cloud Storage |
-| Queues and jobs | Pub/Sub, Cloud Scheduler |
+| Realtime | Gemini Live over WebSockets |
+| AI | Gemini Live, Gemini on Vertex AI, Gemini Computer Use, Gemma, Search grounding |
+| Data | Firestore today; Cloud Storage planned |
+| Queues and jobs | Pub/Sub and Cloud Scheduler (planned) |
 | Packaging | Docker containers |

@@ -1,6 +1,19 @@
-# Idea submission
+# Submissions
 
 [Back to README](../README.md)
+
+## Final prototype submission (21 Nov 2026)
+
+| | |
+|---|---|
+| **Live prototype** | [jarvis-704571930437.asia-south1.run.app](https://jarvis-704571930437.asia-south1.run.app) |
+| **Final deck** | [Bas_Bolo_Jarvis_Final_Submission.pdf](pitch/Bas_Bolo_Jarvis_Final_Submission.pdf) |
+| **Demo video** | [2 minute demo](https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing) |
+| **Challenge** | Open Innovation |
+| **Google AI** | Gemini Live, Gemini on Vertex AI, Gemini Computer Use, Gemma, Search grounding |
+| **Google Cloud** | Cloud Run (Mumbai), Firestore, Cloud Build, Artifact Registry |
+
+## Idea submission (15 Nov 2026)
 
 Our idea submission for the **Startup Buildathon India 2026**, by team **Bas Bolo**.
 

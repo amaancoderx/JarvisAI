@@ -7,7 +7,7 @@
 | Stage | Date | Goal |
 |-------|------|------|
 | Idea submission | by 15 Nov 2026 | ✅ Submitted |
-| City Buildathon, Hyderabad | 20 to 21 Nov 2026 | Build and demo the Google AI edition |
+| City Buildathon, Hyderabad | 20 to 21 Nov 2026 | ✅ Google AI edition live and submitted |
 | Regional Showcase, Hyderabad | 27 Nov 2026 | Present to business mentors and investors |
 | Grand Finale, Google Bengaluru | 2 Dec 2026 | Real users, real feedback, Top 10 |
 
@@ -15,19 +15,19 @@
 
 ### Day 1 (20 Nov): ideate and design
 
-- [ ] Lock the scope for the demo: one voice conversation that books a table and messages a friend
-- [ ] Set up the Google Cloud project, Gemini API, Cloud SQL and Secret Manager
-- [ ] Gemini Live voice session working in the web client
-- [ ] Gemma router: question or task
-- [ ] Mentor rounds: test the pitch and the flow
+- [x] Lock the scope for the demo: one voice conversation that books a table and messages a friend
+- [x] Set up the Google Cloud project, Vertex AI and Firestore
+- [x] Gemini Live voice session working in the web client
+- [x] Gemma router: question or task
+- [x] Mentor rounds: test the pitch and the flow
 
 ### Day 2 (21 Nov): build and showcase
 
-- [ ] Gemini planner with function calling for gmail, calendar, whatsapp and web-computer
-- [ ] Trust layer: risk tiers, approvals bound to exact content, audit log
-- [ ] Deploy voice, work and computer services to Cloud Run
-- [ ] End-to-end demo in Hindi and English
-- [ ] Submit and present to the jury
+- [x] Gemini planner with function calling for Gmail, Calendar, Drive, WhatsApp and the cloud computer
+- [x] Trust layer: risk tiers, approvals bound to exact content, audit log
+- [x] Deploy to Cloud Run in Mumbai, with the cloud computer live in the chat
+- [x] End-to-end demo in Hindi, English and Telugu
+- [x] Submit the prototype, deck and demo video
 
 ## Up to the Grand Finale (2 Dec)
 
