@@ -65,6 +65,18 @@ h1 em{font-style:normal;background:linear-gradient(90deg,var(--brand),var(--bran
 .frame{margin:56px auto 0;max-width:1060px;border-radius:20px;padding:10px;background:linear-gradient(180deg,#2a2a31,#17171b);border:1px solid #2f2f36;box-shadow:0 40px 120px -30px rgba(255,91,46,.35),0 30px 80px -20px rgba(0,0,0,.8)}
 .frame .bar{display:flex;gap:6px;padding:4px 6px 10px}.frame .bar i{width:10px;height:10px;border-radius:50%;background:#3a3a42}
 .frame img{border-radius:12px;width:100%}
+.frame .bt{margin-left:auto;font-size:12px;color:var(--dim);padding-right:6px}
+.player{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/9}
+.player video{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+.cover{position:absolute;inset:0;border:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;font:inherit;
+  background:linear-gradient(180deg,rgba(14,14,16,.35),rgba(14,14,16,.85)),url(img/computer-live-in-chat.jpg) center/cover}
+.cover .play{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;background:var(--brand);box-shadow:0 0 0 14px rgba(255,91,46,.22),0 20px 60px rgba(255,91,46,.55);transition:transform .25s}
+.cover .play svg{width:36px;height:36px;margin-left:5px}
+.cover:hover .play{transform:scale(1.08)}
+.cover .cl{display:flex;flex-direction:column;gap:2px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.cover .cl b{font-size:22px;letter-spacing:-.02em}.cover .cl span{font-size:14px;color:#e4e2de}
+.cover.hide{display:none}
+@media(max-width:600px){.cover .play{width:64px;height:64px}.cover .play svg{width:26px;height:26px}.cover .cl b{font-size:17px}.cover .cl span{font-size:12px}}
 
 /* sections */
 section{padding:110px 0}
@@ -201,7 +213,7 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:2
     <div class="links">
       <a href="#product">Product</a><a href="#how">How it works</a><a href="#trust">Trust</a><a href="#pricing">Pricing</a><a href="#team">Team</a>
     </div>
-    <a class="btn btn-p" href="https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing" target="_blank" rel="noopener">Watch demo</a>
+    <a class="btn btn-p" href="https://basbolo-app.onrender.com" target="_blank" rel="noopener">Try Jarvis</a>
   </div>
 </nav>
 
@@ -211,17 +223,25 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:2
     <h1>You say it, <em>it gets done.</em><br>In your own language.</h1>
     <p class="lead">Jarvis is a voice-first AI agent for India. Speak in Hindi, Telugu or English, and Jarvis plans the task and finishes it across Gmail, Calendar, Drive, WhatsApp and the web. Nothing is sent until you say yes.</p>
     <div class="cta">
-      <a class="btn btn-p" href="https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing" target="_blank" rel="noopener">
+      <a class="btn btn-p" href="https://basbolo-app.onrender.com" target="_blank" rel="noopener">Try Jarvis live</a>
+      <a class="btn btn-g" href="#demo" data-play>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Watch the 2 min demo</a>
-      <a class="btn btn-g" href="#beta">Join the beta</a>
     </div>
     <div class="langs">
       <span class="say hi"><b>हिंदी</b>Ravi ke saath kal raat 8 baje dinner book karo</span>
       <span class="say"><b>English</b>Go through my inbox and handle anything urgent</span>
       <span class="say te"><b>తెలుగు</b>రేపు సాయంత్రం 7 గంటలకు అమ్మకి కాల్ చేయమని గుర్తు చేయి</span>
     </div>
-    <div class="frame rv"><div class="bar"><i></i><i></i><i></i></div>
-      <img src="img/computer-live-in-chat.jpg" alt="Jarvis Cloud Computer working live inside the chat" width="1920" height="1080">
+    <div class="frame rv" id="demo"><div class="bar"><i></i><i></i><i></i><span class="bt">Jarvis demo · 2 min</span></div>
+      <div class="player" id="player">
+        <video id="vid" preload="metadata" playsinline controls poster="img/computer-live-in-chat.jpg" width="1920" height="1080">
+          <source src="img/jarvis-demo.mp4" type="video/mp4">
+        </video>
+        <button class="cover" id="cover" aria-label="Play the Jarvis demo">
+          <span class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>
+          <span class="cl"><b>Watch Jarvis in action</b><span>Hindi booking, inbox safety, cloud computer · 2:21</span></span>
+        </button>
+      </div>
     </div>
   </div>
 </header>
@@ -379,8 +399,8 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:2
     <h2>Be one of the first to just say it.</h2>
     <p class="sub" style="margin-left:auto;margin-right:auto">We're onboarding students and professionals in Hyderabad first. Tell us what you'd hand to Jarvis.</p>
     <div class="cta">
-      <a class="btn btn-p" href="mailto:amaan.coderx@gmail.com?subject=Jarvis%20beta">Join the beta</a>
-      <a class="btn btn-g" href="https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing" target="_blank" rel="noopener">Watch the demo</a>
+      <a class="btn btn-p" href="https://basbolo-app.onrender.com" target="_blank" rel="noopener">Try Jarvis live</a>
+      <a class="btn btn-g" href="mailto:amaan.coderx@gmail.com?subject=Jarvis%20beta">Join the beta</a>
     </div>
   </div>
 </section>
@@ -395,6 +415,11 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:2
 <script>
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
 document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+const vid=document.getElementById('vid'),cover=document.getElementById('cover');
+function playDemo(){cover.classList.add('hide');vid.play().catch(()=>{});}
+cover.addEventListener('click',playDemo);
+vid.addEventListener('play',()=>cover.classList.add('hide'));
+document.querySelectorAll('[data-play]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();document.getElementById('demo').scrollIntoView({behavior:'smooth',block:'center'});setTimeout(playDemo,450);}));
 </script>
 </body>
 </html>
