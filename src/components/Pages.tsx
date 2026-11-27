@@ -431,7 +431,7 @@ export function ComputersPage() {
   const run = (g: string) => { if (g.trim()) { setGoal(""); void call({ action: "run", goal: g.trim() }, "run"); } };
   const ideas = [
     "Find 3 vegetarian restaurants in Banjara Hills on Google Maps with ratings",
-    "Open startupbuildathon.com and tell me the dates of the Grand Finale",
+    "Open isro.gov.in and tell me about ISRO's latest mission",
     "Search for flights from Hyderabad to Bengaluru on 2 December and list the cheapest",
   ];
   const [chipLabel, chipTone] = STATUS_CHIP[s?.status ?? "idle"];
@@ -602,9 +602,9 @@ export function HowPage({ go }: { go: Go }) {
   return (
     <div className="page wide">
       <div className="page-head">
-        <div className="row"><JarvisMark size={36} /><span className="chip google">Startup Buildathon India 2026 · Google DeepMind × Google Cloud</span></div>
+        <div className="row"><JarvisMark size={36} /><span className="chip google">Built on Google AI · Gemini, Gemini Live and Vertex AI</span></div>
         <h1>How Jarvis works</h1>
-        <p>Jarvis is a voice-first AI agent for India, built by team Bas Bolo in Hyderabad. You say what you need in English, Hindi or Telugu; Jarvis plans it, does it across Gmail, Calendar, Drive, WhatsApp and the web, with its own cloud computer, and asks before anything goes out.</p>
+        <p>Jarvis is a voice-first AI agent for India, built by Bas Bolo in Hyderabad. You say what you need in English, Hindi or Telugu; Jarvis plans it, does it across Gmail, Calendar, Drive, WhatsApp and the web, with its own cloud computer, and asks before anything goes out.</p>
       </div>
       <section className="section"><h2>From one sentence to a finished task</h2><div className="figure"><img src="/flow.png" alt="Process flow" /></div></section>
       <section className="section"><h2>Architecture</h2><div className="figure"><img src="/architecture.png" alt="Architecture" /></div></section>

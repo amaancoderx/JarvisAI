@@ -107,7 +107,7 @@ export function Shell({ view, go, children }: { view: View; go: (v: View, id?: s
           </div>
           {group("Connect", SETUP)}
           {group("Records", RECORDS)}
-          {group("Buildathon", BUILD)}
+          {group("About", BUILD)}
         </div>
         <div className="side-foot" ref={menuRef}>
           {menu && (

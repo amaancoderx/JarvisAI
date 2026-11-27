@@ -10,11 +10,10 @@
 <br/>
 <br/>
 
-[![Startup Buildathon](https://img.shields.io/badge/Startup%20Buildathon-India%202026-4285F4?style=flat-square)](https://startupbuildathon.com/)
-[![Live](https://img.shields.io/badge/live-Cloud%20Run%20Mumbai-34A853?style=flat-square&logo=googlecloud&logoColor=white)](https://jarvis-704571930437.asia-south1.run.app)
+[![Live](https://img.shields.io/badge/live-basbolo.onrender.com-34A853?style=flat-square)](https://basbolo.onrender.com)
 [![Gemini](https://img.shields.io/badge/Gemini-Vertex%20AI%20%2B%20Live%20%2B%20Computer%20Use-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](docs/google-ai.md)
-[![Demo video](https://img.shields.io/badge/demo-2%20min%20video-EA4335?style=flat-square)](https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing)
-[![Team](https://img.shields.io/badge/team-Bas%20Bolo-FF5B2E?style=flat-square)](#-team)
+[![Demo video](https://img.shields.io/badge/demo-2%20min%20video-EA4335?style=flat-square)](https://basbolo.onrender.com/#demo)
+[![Bas Bolo](https://img.shields.io/badge/by-Bas%20Bolo-2747E6?style=flat-square)](#-team)
 [![Made in](https://img.shields.io/badge/made%20in-Hyderabad-FBBC05?style=flat-square)](#-team)
 
 </div>
@@ -23,21 +22,21 @@
 
 Jarvis is a voice-first AI agent that does the work instead of just answering. You talk to it the way you talk to a person, in Hindi, Telugu, English or a mix of all three, and it plans the task and carries it out across Gmail, Google Calendar, Google Drive, WhatsApp and the open web. It has its own computer in the cloud that you can watch live, it learns what matters to you, and nothing gets sent until you say yes.
 
-This repository is the **Google AI edition** of Jarvis, built by team **Bas Bolo** for the [Startup Buildathon India 2026](https://startupbuildathon.com/) by Google DeepMind and Google Cloud, powered by Hack2skill, nasscom and HEADSTART.
+Jarvis is built by **Bas Bolo**, an AI startup from Hyderabad, on Google AI: Gemini, Gemini Live, Gemma and Vertex AI.
 
 ## ▶️ Try it live
 
-**[jarvis-704571930437.asia-south1.run.app](https://jarvis-704571930437.asia-south1.run.app)** · running on Google Cloud Run in Mumbai
+**[basbolo.onrender.com](https://basbolo.onrender.com)** · product site and demo · **[basbolo-app.onrender.com](https://basbolo-app.onrender.com)** · the app
 
 - **Continue with Google** connects your real Gmail, Calendar and Drive through Google sign-in. Every send waits for your OK.
 - **Explore with sample data** needs no sign-in: a ready inbox and calendar, with the same real Gemini, Google Search, voice and cloud computer.
 
-**Watch the 2 minute demo:** [Jarvis demo video](https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing) · **Final deck:** [PDF](docs/pitch/Bas_Bolo_Jarvis_Final_Submission.pdf)
+**Watch the 2 minute demo:** [on our site](https://basbolo.onrender.com/#demo)
 
 **Try saying:**
 - *"Ravi ke saath kal raat 8 baje Banjara Hills mein dinner book karo, aur use WhatsApp pe bata do"*
 - *"Go through my inbox and handle anything urgent."* (watch the phishing email get quarantined)
-- *"Use the Jarvis Cloud Computer to open startupbuildathon.com and tell me the dates of the Grand Finale"*
+- *"Use the Jarvis Cloud Computer to open isro.gov.in and tell me about ISRO's latest mission"*
 - *"Compare UPI, credit cards and Buy Now Pay Later for a college student, in a table"*
 - *"రేపు సాయంత్రం 7 గంటలకు అమ్మకి కాల్ చేయమని గుర్తు చేయి"*
 
@@ -54,7 +53,6 @@ This repository is the **Google AI edition** of Jarvis, built by team **Bas Bolo
 - [Where we are](#-where-we-are)
 - [Roadmap](#-roadmap)
 - [Who it is for and how it earns](#-who-it-is-for-and-how-it-earns)
-- [How this maps to the judging criteria](#-how-this-maps-to-the-judging-criteria)
 - [Run it yourself](#-run-it-yourself)
 - [Repository layout](#-repository-layout)
 - [Team](#-team)
@@ -177,20 +175,20 @@ Measured on 21 Nov 2026 on Google Cloud Run (asia-south1) with [scripts/e2e.mjs]
 
 ## 📍 Where we are
 
-| Stage | Date | Status |
+| Stage | When | Status |
 |-------|------|--------|
-| Online application and idea submission | 23 Oct to 15 Nov 2026 | ✅ Submitted |
-| City Buildathon, Hyderabad | 20 to 21 Nov 2026 | ✅ Prototype live and submitted |
-| Regional Showcase, Hyderabad | 27 Nov 2026 | ⏳ Next |
-| Grand Finale, Google Bengaluru | 2 Dec 2026 | 🎯 Goal |
+| First version: voice, planning, approvals, cloud computer | Nov 2026 | ✅ Built |
+| Live on the web, with a sample workspace | Nov 2026 | ✅ Live |
+| First users in Hyderabad, by voice in Hindi, Telugu and English | Dec 2026 | ⏳ Now |
+| Android app, UPI with approval, Jarvis for small shops | Next | 🎯 Planned |
 
 ## 🗺️ Roadmap
 
 | When | What |
 |------|------|
 | **Live now** | Voice in three languages, real Gmail, Calendar and Drive, WhatsApp, cloud computer live in chat, browser tab, research, memory in Firestore, signed approvals |
-| **Regional Showcase (27 Nov)** | Our own WhatsApp Business number, first campus beta users, first restaurant booking partner |
-| **Grand Finale (2 Dec)** | Real people using it by voice in Hindi, Telugu and English, with their feedback |
+| **Now** | Our own WhatsApp Business number, first campus users, first restaurant booking partner |
+| **December** | Real people using it by voice in Hindi, Telugu and English, with their feedback |
 | **After that** | UPI payments with approval, an Android app, and Jarvis for small shops (orders, follow-ups, reminders) |
 
 Full detail: **[docs/roadmap.md](docs/roadmap.md)**
@@ -205,15 +203,6 @@ Full detail: **[docs/roadmap.md](docs/roadmap.md)**
 
 Full detail: **[docs/business.md](docs/business.md)**
 
-## 🏁 How this maps to the judging criteria
-
-| Criterion | Where to look |
-|-----------|---------------|
-| **Founder profile** | [Team](#-team) |
-| **Product potential** | [The problem](#-the-problem), [What Jarvis does](#-what-jarvis-does), [See it working](#-see-it-working), [demo video](https://drive.google.com/file/d/1rU7izA6itIy5YTWqY6I49bOfLy4ZzmFA/view?usp=sharing) |
-| **Market viability** | [Who it is for and how it earns](#-who-it-is-for-and-how-it-earns), [docs/business.md](docs/business.md) |
-| **Technical architecture** | [How it works](#-how-it-works), [Trust and safety](#-trust-and-safety), [Measured on the live deployment](#-measured-on-the-live-deployment) |
-| **Use of Google AI and Google Cloud** | [Built on Google AI and Google Cloud](#-built-on-google-ai-and-google-cloud), [docs/google-ai.md](docs/google-ai.md), [docs/google-cloud.md](docs/google-cloud.md) |
 
 ## 💻 Run it yourself
 
@@ -254,12 +243,12 @@ JarvisAI/
 ├── scripts/e2e.mjs          end-to-end scenario checks
 ├── Dockerfile               Cloud Run image with Chromium
 ├── assets/                  banner, logo, diagrams, screenshots
-└── docs/                    architecture, Google AI, Google Cloud, trust, roadmap, business, submissions, pitch decks
+└── docs/                    architecture, Google AI, Google Cloud, trust, roadmap, business, pitch decks
 ```
 
 ## 👥 Team
 
-**Team Bas Bolo**, Hyderabad. *Bas bolo* means "just say it".
+**Bas Bolo**, Hyderabad. *Bas bolo* means "just say it".
 
 | | Role |
 |---|---|

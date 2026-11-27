@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Jarvis · Just say it",
   description:
-    "A voice-first AI agent for India. Say what you need in English, Hindi or Telugu. Jarvis gets it done across email, calendar, WhatsApp and the web, and asks before it acts. Built on Gemini and Google Cloud by team Bas Bolo.",
+    "A voice-first AI agent for India. Say what you need in English, Hindi or Telugu. Jarvis gets it done across email, calendar, WhatsApp and the web, and asks before it acts. Built on Gemini and Google Cloud by Bas Bolo.",
   icons: { icon: [{ url: "/favicon.ico", sizes: "any" }, { url: "/icon-192.png", type: "image/png", sizes: "192x192" }], apple: "/icon-192.png" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#2f4ff0" };
