@@ -170,8 +170,12 @@ Rules:
 async function findStart(ai: GoogleGenAI, goal: string): Promise<string[]> {
   if (/https?:\/\/|maps|restaurant|near me/i.test(goal)) return [];
   try {
+    // A separate search key (SEARCH_API_KEY) carries Search grounding when the main key's quota for it is used up.
+    const key = process.env.SEARCH_API_KEY;
+    const searcher = key ? new GoogleGenAI({ apiKey: key }) : ai;
+    const model = process.env.SEARCH_MODEL || (key ? "gemini-2.5-flash" : "gemini-3.1-flash-lite");
     const r = await Promise.race([
-      ai.models.generateContent({ model: process.env.SEARCH_MODEL || "gemini-3.1-flash-lite", contents: `Use Google Search. For this task, give the 1 to 3 exact official web page URLs a person should open first (the specific page, for example the admission or application form, not just the home page). Reply with only the URLs, one per line.\nTask: ${goal}`, config: { tools: [{ googleSearch: {} }], temperature: 0 } }),
+      searcher.models.generateContent({ model, contents: `Use Google Search. For this task, give the 1 to 3 exact official web page URLs a person should open first (the specific page, for example the admission or application form, not just the home page). Reply with only the URLs, one per line.\nTask: ${goal}`, config: { tools: [{ googleSearch: {} }], temperature: 0 } }),
       sleep(9000).then(() => null),
     ]);
     const urls = (r?.text ?? "").match(/https?:\/\/[^\s)>\]"']+/g) ?? [];
