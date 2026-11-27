@@ -1,0 +1,19 @@
+name: Keep Jarvis awake
+
+# Render's free plan sleeps a service after 15 idle minutes. A light ping every 10 minutes keeps it awake.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping the app and the website
+        run: |
+          for url in https://basbolo-app.onrender.com/api/health https://basbolo.onrender.com; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$url" || true)
+            echo "$url -> $code"
+          done
