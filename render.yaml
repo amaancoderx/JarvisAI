@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: basbolo-jarvis
+    runtime: static
+    buildCommand: echo "static site"
+    staticPublishPath: ./site
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
